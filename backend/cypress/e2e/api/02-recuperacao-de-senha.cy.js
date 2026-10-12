@@ -78,7 +78,7 @@ describe('API: recuperação de senha', () => {
     cy.loginApi(u.matricula, u.senha).its('status').should('eq', 200); // senha não mudou
   });
 
-  it('depois de 5 erros bloqueia (mesmo com o código certo) até pedir um novo código', () => {
+  it('depois de 5 erros bloqueia (mesmo com o código certo) até o código vencer e pedir outro', () => {
     solicitar(u.matricula).then((s) => {
       for (let i = 0; i < 5; i += 1) {
         recuperar(u.matricula, '111111', 'OutraSenha@99').its('status').should('eq', 400);
@@ -87,6 +87,8 @@ describe('API: recuperação de senha', () => {
         expect(r.status).to.eq(400);
         expect(r.body.mensagem).to.contain('Muitas tentativas');
       });
+      // o contador só volta a zero quando o código atual vence (simulado aqui)
+      cy.bd(`UPDATE usuarios SET codigo_expiracao = NOW() - INTERVAL '1 minute' WHERE matricula = $1`, [u.matricula]);
       solicitar(u.matricula).then((novo) => {
         recuperar(u.matricula, novo.body.codigo_teste, 'OutraSenha@99').its('status').should('eq', 200);
       });

@@ -1,6 +1,6 @@
 import { USUARIOS } from '../../support/dados';
 import { criarVaga, criarUsuarioAtivo, agendar, logsDeAuditoria } from '../../support/apiHelpers';
-import { dataSP, dataBr } from '../../support/datas';
+import { dataSP, dataBr, hojeSP } from '../../support/datas';
 
 describe('API: portaria (recepção)', () => {
   const t = {};
@@ -32,6 +32,8 @@ describe('API: portaria (recepção)', () => {
   const porData = (d, busca) =>
     cy.api('GET', `/api/portaria/por-data?data=${encodeURIComponent(d)}${busca !== undefined ? `&busca=${encodeURIComponent(busca)}` : ''}`, { token: t.recepcao });
   const confirmar = (ticket) => cy.api('POST', '/api/portaria/confirmar-entrada', { token: t.recepcao, body: { ticket_id: ticket } });
+  // a entrada só pode ser confirmada no dia da prova: traz o agendamento para hoje
+  const paraHoje = (ticket) => cy.bd('UPDATE agendamentos SET data_agendada = $2 WHERE id = $1', [ticket, hojeSP()]);
 
   describe('consulta por aluno', () => {
     it('busca pela matrícula e devolve aluno, foto, avaliação, data, horário e local', () => {
@@ -173,6 +175,7 @@ describe('API: portaria (recepção)', () => {
   describe('confirmar entrada', () => {
     it('confirma, grava quem e quando, muda o status e registra na auditoria', () => {
       novoAgendado().then((a) => {
+        paraHoje(a.ticket);
         confirmar(a.ticket).then((r) => {
           expect(r.status, JSON.stringify(r.body)).to.eq(200);
           expect(r.body.sucesso).to.eq(true);
@@ -180,7 +183,7 @@ describe('API: portaria (recepção)', () => {
         cy.bd('SELECT entrada_confirmada_em IS NOT NULL AS confirmada, entrada_confirmada_por FROM agendamentos WHERE id = $1', [a.ticket]).then((rows) => {
           expect(rows[0]).to.deep.eq({ confirmada: true, entrada_confirmada_por: USUARIOS.recepcao.nome });
         });
-        porData(data, a.parteDoNome).then((r) => {
+        porData(hojeSP(), a.parteDoNome).then((r) => {
           expect(r.body.alunos[0].status).to.eq('Presente');
           expect(r.body.presentes).to.eq(1);
         });
@@ -195,6 +198,7 @@ describe('API: portaria (recepção)', () => {
 
     it('confirmar duas vezes: 409', () => {
       novoAgendado().then((a) => {
+        paraHoje(a.ticket);
         confirmar(a.ticket).its('status').should('eq', 200);
         confirmar(a.ticket).then((r) => {
           expect(r.status).to.eq(409);
@@ -237,6 +241,7 @@ describe('API: portaria (recepção)', () => {
 
         consultar(a.matricula).its('body.resultados.0.ticket_id').should('eq', a.ticket);
         porData(data, a.parteDoNome).its('body.total').should('eq', 1);
+        paraHoje(a.ticket);
         confirmar(a.ticket).its('status').should('eq', 200);
       });
     });

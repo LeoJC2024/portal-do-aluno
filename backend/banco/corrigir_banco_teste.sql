@@ -55,3 +55,16 @@ CREATE TABLE IF NOT EXISTS disciplinas (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS uq_disciplinas_nome_ci ON disciplinas (LOWER(TRIM(nome)));
 INSERT INTO disciplinas (nome) VALUES ('A'), ('B'), ('C') ON CONFLICT DO NOTHING;
+
+-- sobras dos scripts da varredura de falhas (as vagas CY-PROBE-* já saem no começo deste arquivo):
+-- usuários de teste inativos (e-mail cy-probe-*@exemplo.com ou nome gigante), disciplinas CY-PROBE-*
+-- e o código de recuperação pendente do TESTE_ALUNO_B. Os logs de auditoria ficam (tabela imutável).
+DELETE FROM agendamentos
+ WHERE usuario_id IN (SELECT id FROM usuarios
+                       WHERE NOT ativo AND (LOWER(email) LIKE 'cy-probe-%@exemplo.com' OR char_length(nome) > 150));
+DELETE FROM usuarios
+ WHERE NOT ativo AND (LOWER(email) LIKE 'cy-probe-%@exemplo.com' OR char_length(nome) > 150);
+DELETE FROM disciplinas WHERE nome LIKE 'CY-PROBE%';
+UPDATE usuarios
+   SET codigo_recuperacao = NULL, codigo_expiracao = NULL, codigo_tentativas = 0
+ WHERE matricula = 'TESTE_ALUNO_B';

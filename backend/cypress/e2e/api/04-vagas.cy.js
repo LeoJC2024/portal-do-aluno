@@ -47,7 +47,7 @@ describe('API: cadastro de vagas', () => {
     ['sem início', { horario_inicio: '' }, 'Preencha todos os campos da vaga.'],
     ['sem fim', { horario_fim: '' }, 'Preencha todos os campos da vaga.'],
     ['sem limite', { limite_vagas: undefined }, 'Preencha todos os campos da vaga.'],
-    ['limite não numérico', { limite_vagas: 'abc' }, 'Preencha todos os campos da vaga.'],
+    ['limite não numérico', { limite_vagas: 'abc' }, 'número inteiro'],
     ['limite 0', { limite_vagas: 0 }, 'entre 1 e 5000'],
     ['limite acima de 5000', { limite_vagas: 5001 }, 'entre 1 e 5000'],
     ['limite negativo', { limite_vagas: -3 }, 'entre 1 e 5000'],

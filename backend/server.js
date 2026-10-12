@@ -36,6 +36,8 @@ if (MODO_TESTE) {
   console.warn('\n⚠️  MODO DE TESTE ATIVO: e-mails desligados e segredos expostos nas respostas. NUNCA use em produção.\n');
 }
 const MAX_TENTATIVAS_CODIGO = 5;
+const VALIDADE_CODIGO_MIN = 15;        // validade do código de recuperação
+const INTERVALO_MIN_CODIGO_SEG = 60;   // intervalo mínimo entre dois pedidos de código da mesma matrícula
 
 // DATE vem como 'YYYY-MM-DD' (sem virar Date e sem deslocar de fuso)
 types.setTypeParser(1082, (v) => v);
@@ -48,6 +50,11 @@ const jsonPequeno = express.json({ limit: '100kb' });
 const jsonComFoto = express.json({ limit: '1mb' });
 const ROTAS_COM_FOTO = ['/api/cadastrar-usuario', '/api/atualizar-foto'];
 app.use((req, res, next) => (ROTAS_COM_FOTO.includes(req.path) ? jsonComFoto : jsonPequeno)(req, res, next));
+// sem corpo JSON (ou sem Content-Type) o Express 5 deixa req.body undefined: as rotas tratam como corpo vazio e respondem 400
+app.use((req, res, next) => {
+  if (req.body === undefined) req.body = {};
+  next();
+});
 
 if (process.env.TRUST_PROXY) app.set('trust proxy', Number(process.env.TRUST_PROXY));
 
@@ -64,7 +71,13 @@ app.use(cors({
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DB_SSL === 'false' ? false : { rejectUnauthorized: false }
+  ssl: process.env.DB_SSL === 'false' ? false : { rejectUnauthorized: false },
+  application_name: 'portal-backend' // identifica as conexões do servidor no banco
+});
+// conexão ociosa encerrada pelo banco (reinício, timeout do Supabase) não pode derrubar o servidor;
+// o pool descarta a conexão e abre outra na próxima consulta
+pool.on('error', (err) => {
+  console.error('Conexão ociosa com o banco foi encerrada:', err.message);
 });
 
 const transporter = nodemailer.createTransport({
@@ -108,6 +121,22 @@ const hashCodigo = (codigo) =>
   crypto.createHmac('sha256', JWT_SECRET).update(String(codigo)).digest('hex');
 
 const escapeLike = (s) => String(s).replace(/[\\%_]/g, (c) => '\\' + c);
+
+// inteiro >= 0 escrito só com dígitos (número ou texto) e que cabe no INTEGER do Postgres; senão null.
+// Recusa "12abc", "5.9", "1e2", "-1" e valores acima de 2147483647 (que dariam erro 500 no banco)
+const MAX_INTEGER_PG = 2147483647;
+function inteiroEstrito(valor) {
+  const texto = typeof valor === 'number' ? String(valor) : typeof valor === 'string' ? valor.trim() : '';
+  if (!/^\d{1,10}$/.test(texto)) return null;
+  const n = Number(texto);
+  return n <= MAX_INTEGER_PG ? n : null;
+}
+
+// tamanhos máximos dos campos de texto
+const LIMITE = { NOME: 150, EMAIL: 254, CURSO: 100, POLO: 100, BUSCA: 100 };
+function exigirTamanho(rotulo, valor, max) {
+  if (valor.length > max) throw new ErroHttp(400, `${rotulo} deve ter no máximo ${max} caracteres.`);
+}
 
 // ---------- matrícula automática e senha provisória ----------
 const PREFIXO_MATRICULA = { 'Aluno': 'E', 'coordenador': 'C', 'Recepção do Polo': 'AT' };
@@ -396,6 +425,9 @@ app.post('/api/cadastrar-usuario', autenticar, exigirPerfil(PERFIL.COORD), rota(
   if (!nome || !tipo || !email) {
     return res.status(400).json({ sucesso: false, mensagem: 'Preencha nome, e-mail e tipo de perfil.' });
   }
+  exigirTamanho('O nome', nome, LIMITE.NOME);
+  exigirTamanho('O e-mail', email, LIMITE.EMAIL);
+  exigirTamanho('O curso', curso, LIMITE.CURSO);
   const prefixo = PREFIXO_MATRICULA[tipo];
   if (!prefixo) {
     return res.status(400).json({ sucesso: false, mensagem: 'Tipo de perfil inválido.' });
@@ -477,8 +509,8 @@ app.get('/api/cursos', autenticar, exigirPerfil(PERFIL.COORD), rota(async (req, 
 
 // adiciona ou troca a foto de um aluno já cadastrado
 app.post('/api/atualizar-foto', autenticar, exigirPerfil(PERFIL.COORD), rota(async (req, res) => {
-  const id = Number.parseInt(req.body.id, 10);
-  if (!Number.isInteger(id) || !req.body.foto) {
+  const id = inteiroEstrito(req.body.id);
+  if (id === null || !req.body.foto) {
     return res.status(400).json({ sucesso: false, mensagem: 'Informe o aluno e a foto.' });
   }
 
@@ -516,9 +548,9 @@ app.get('/api/perfil', autenticar, rota(async (req, res) => {
 
 // define/troca o polo de uma recepção já cadastrada (quem tem polo só vê aquele polo na portaria)
 app.post('/api/atualizar-polo', autenticar, exigirPerfil(PERFIL.COORD), rota(async (req, res) => {
-  const id = Number.parseInt(req.body.id, 10);
+  const id = inteiroEstrito(req.body.id);
   const polo = String(req.body.polo ?? '').trim();
-  if (!Number.isInteger(id) || !polo) {
+  if (id === null || !polo) {
     return res.status(400).json({ sucesso: false, mensagem: 'Informe o usuário e o polo.' });
   }
   if (polo.length > 100) {
@@ -544,6 +576,7 @@ app.post('/api/atualizar-polo', autenticar, exigirPerfil(PERFIL.COORD), rota(asy
 // lista de usuários (nunca devolve a senha)
 app.get('/api/usuarios', autenticar, exigirPerfil(PERFIL.COORD), rota(async (req, res) => {
   const busca = String(req.query.busca ?? '').trim();
+  exigirTamanho('A busca', busca, LIMITE.BUSCA);
   const { rows } = await pool.query(
     `SELECT id, nome, matricula, curso, tipo, email, ativo, foto_url, polo
        FROM usuarios
@@ -557,12 +590,16 @@ app.get('/api/usuarios', autenticar, exigirPerfil(PERFIL.COORD), rota(async (req
 
 // exclusão lógica (ativo = false) e reativação; o histórico e os logs são preservados
 app.post('/api/alterar-status-usuario', autenticar, exigirPerfil(PERFIL.COORD), rota(async (req, res) => {
-  const id = Number.parseInt(req.body.id, 10);
-  const ativar = req.body.ativo === true;
-
-  if (!Number.isInteger(id)) {
+  const id = inteiroEstrito(req.body.id);
+  if (id === null) {
     return res.status(400).json({ sucesso: false, mensagem: 'Usuário inválido.' });
   }
+  // só aceita booleano de verdade: "true" (texto) não pode virar exclusão
+  if (typeof req.body.ativo !== 'boolean') {
+    return res.status(400).json({ sucesso: false, mensagem: 'Informe se o usuário deve ficar ativo (true ou false).' });
+  }
+  const ativar = req.body.ativo;
+
   if (!ativar && id === req.usuario.id) {
     return res.status(400).json({ sucesso: false, mensagem: 'Você não pode excluir a sua própria conta.' });
   }
@@ -570,6 +607,10 @@ app.post('/api/alterar-status-usuario', autenticar, exigirPerfil(PERFIL.COORD), 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+
+    // exclusões entram uma de cada vez: dois coordenadores excluindo um ao outro ao mesmo tempo
+    // não podem os dois passar pela checagem do "último coordenador ativo"
+    if (!ativar) await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', ['exclusao-usuarios']);
 
     const { rows } = await client.query(
       'SELECT id, nome, matricula, tipo, ativo FROM usuarios WHERE id = $1 FOR UPDATE',
@@ -652,23 +693,34 @@ app.post('/api/solicitar-codigo', limitadorSenha, rota(async (req, res) => {
 
   if (usuario && usuario.email) {
     const codigo = String(crypto.randomInt(100000, 1000000));
-    codigoTeste = codigo;
 
-    await pool.query(
+    // - intervalo mínimo entre pedidos: o pedido feito há menos de INTERVALO_MIN_CODIGO_SEG não gera
+    //   código novo (a resposta é a mesma, e o código anterior continua valendo);
+    // - o contador de tentativas só volta a zero quando o código anterior já venceu (ou não existe),
+    //   assim pedir códigos novos não dá mais 5 tentativas a cada pedido.
+    // A condição fica no próprio UPDATE para dois pedidos simultâneos não gerarem dois códigos.
+    const gerado = await pool.query(
       `UPDATE usuarios
           SET codigo_recuperacao = $1,
-              codigo_expiracao = NOW() + INTERVAL '15 minutes',
-              codigo_tentativas = 0
-        WHERE id = $2`,
-      [hashCodigo(codigo), usuario.id]
+              codigo_tentativas = CASE WHEN codigo_expiracao IS NULL OR codigo_expiracao <= NOW()
+                                       THEN 0 ELSE codigo_tentativas END,
+              codigo_expiracao = NOW() + $3 * INTERVAL '1 minute'
+        WHERE id = $2
+          AND (codigo_expiracao IS NULL
+               OR codigo_expiracao - $3 * INTERVAL '1 minute' <= NOW() - $4 * INTERVAL '1 second')`,
+      [hashCodigo(codigo), usuario.id, VALIDADE_CODIGO_MIN, INTERVALO_MIN_CODIGO_SEG]
     );
+    if (gerado.rowCount === 0) {
+      return res.json({ sucesso: true, mensagem: MENSAGEM });
+    }
+    codigoTeste = codigo;
 
     try {
       await transporter.sendMail({
         from: `"Portal UNIFAA" <${process.env.EMAIL_USER}>`,
         to: usuario.email,
         subject: 'Código de Recuperação de Senha - Portal UNIFAA',
-        text: `Olá ${usuario.nome},\n\nSeu código de verificação para redefinir a senha é: ${codigo}\n\nEste código é válido por 15 minutos. Se você não solicitou, ignore este e-mail.`
+        text: `Olá ${usuario.nome},\n\nSeu código de verificação para redefinir a senha é: ${codigo}\n\nEste código é válido por ${VALIDADE_CODIGO_MIN} minutos. Se você não solicitou, ignore este e-mail.`
       });
     } catch (err) {
       console.error('Falha ao enviar e-mail de recuperação:', err.message);
@@ -694,17 +746,24 @@ app.post('/api/recuperar-senha', limitadorSenha, rota(async (req, res) => {
 
   const INVALIDO = { sucesso: false, mensagem: 'Código ou senha provisória inválidos ou expirados.' };
 
+  // a tentativa é contada ANTES de comparar, num único UPDATE: pedidos simultâneos entram
+  // um de cada vez na linha do usuário e nenhum passa do limite
   const { rows } = await pool.query(
-    `SELECT id, senha, trocar_senha, codigo_recuperacao, codigo_tentativas,
-            (codigo_expiracao > NOW()) AS valido
-       FROM usuarios WHERE LOWER(matricula) = LOWER($1) AND ativo`,
-    [matricula]
+    `UPDATE usuarios
+        SET codigo_tentativas = codigo_tentativas + 1
+      WHERE LOWER(matricula) = LOWER($1) AND ativo AND codigo_tentativas < $2
+      RETURNING id, senha, trocar_senha, codigo_recuperacao, (codigo_expiracao > NOW()) AS valido`,
+    [matricula, MAX_TENTATIVAS_CODIGO]
   );
   const usuario = rows[0];
 
-  if (!usuario) return res.status(400).json(INVALIDO);
-  if (usuario.codigo_tentativas >= MAX_TENTATIVAS_CODIGO) {
-    return res.status(400).json({ sucesso: false, mensagem: 'Muitas tentativas incorretas. Clique em "Esqueci minha senha" e solicite um novo código.' });
+  if (!usuario) {
+    const existe = await pool.query('SELECT 1 FROM usuarios WHERE LOWER(matricula) = LOWER($1) AND ativo', [matricula]);
+    if (existe.rows.length === 0) return res.status(400).json(INVALIDO);
+    return res.status(400).json({
+      sucesso: false,
+      mensagem: `Muitas tentativas incorretas. Aguarde o código atual vencer (até ${VALIDADE_CODIGO_MIN} minutos) e clique em "Esqueci minha senha" para solicitar um novo código.`
+    });
   }
 
   let confere = false;
@@ -722,10 +781,7 @@ app.post('/api/recuperar-senha', limitadorSenha, rota(async (req, res) => {
       crypto.timingSafeEqual(Buffer.from(informado), Buffer.from(esperado));
   }
 
-  if (!confere) {
-    await pool.query('UPDATE usuarios SET codigo_tentativas = codigo_tentativas + 1 WHERE id = $1', [usuario.id]);
-    return res.status(400).json(INVALIDO);
-  }
+  if (!confere) return res.status(400).json(INVALIDO);
 
   if (novaSenha === codigo) {
     return res.status(400).json({ sucesso: false, mensagem: 'A nova senha deve ser diferente da senha provisória/código informado.' });
@@ -753,13 +809,16 @@ app.post('/api/cadastrar-vaga', autenticar, exigirPerfil(PERFIL.COORD), rota(asy
   const data = String(req.body.data ?? '').trim();
   const inicio = String(req.body.horario_inicio ?? '').trim();
   const fim = String(req.body.horario_fim ?? '').trim();
-  const limite = Number.parseInt(req.body.limite_vagas, 10);
+  const limiteInformado = String(req.body.limite_vagas ?? '').trim();
+  const limite = inteiroEstrito(req.body.limite_vagas);
   const agInicio = String(req.body.agendamento_inicio ?? '').trim();
   const agFim = String(req.body.agendamento_fim ?? '').trim();
 
-  if (!polo || !curso || !disciplina || !data || !inicio || !fim || !Number.isInteger(limite)) {
+  if (!polo || !curso || !disciplina || !data || !inicio || !fim || !limiteInformado) {
     return res.status(400).json({ sucesso: false, mensagem: 'Preencha todos os campos da vaga.' });
   }
+  exigirTamanho('O polo', polo, LIMITE.POLO);
+  exigirTamanho('O curso', curso, LIMITE.CURSO);
   if (!dataValida(data) || !horaValida(inicio) || !horaValida(fim)) {
     return res.status(400).json({ sucesso: false, mensagem: 'Data ou horário em formato inválido.' });
   }
@@ -770,8 +829,8 @@ app.post('/api/cadastrar-vaga', autenticar, exigirPerfil(PERFIL.COORD), rota(asy
   if (data < hoje) {
     return res.status(400).json({ sucesso: false, mensagem: 'A data da prova não pode estar no passado.' });
   }
-  if (limite < 1 || limite > 5000) {
-    return res.status(400).json({ sucesso: false, mensagem: 'O limite de vagas deve estar entre 1 e 5000.' });
+  if (limite === null || limite < 1 || limite > 5000) {
+    return res.status(400).json({ sucesso: false, mensagem: 'O limite de vagas deve ser um número inteiro entre 1 e 5000.' });
   }
 
   // período em que o aluno pode agendar (os dois vazios = sempre aberto)
@@ -862,11 +921,15 @@ app.post('/api/disciplinas', autenticar, exigirPerfil(PERFIL.COORD), rota(async 
 }));
 
 app.post('/api/alterar-status-disciplina', autenticar, exigirPerfil(PERFIL.COORD), rota(async (req, res) => {
-  const id = Number.parseInt(req.body.id, 10);
-  const ativar = req.body.ativa === true;
-  if (!Number.isInteger(id)) {
+  const id = inteiroEstrito(req.body.id);
+  if (id === null) {
     return res.status(400).json({ sucesso: false, mensagem: 'Disciplina inválida.' });
   }
+  // só aceita booleano de verdade: "true" (texto) não pode virar inativação
+  if (typeof req.body.ativa !== 'boolean') {
+    return res.status(400).json({ sucesso: false, mensagem: 'Informe se a disciplina deve ficar ativa (true ou false).' });
+  }
+  const ativar = req.body.ativa;
 
   const { rows } = await pool.query('SELECT id, nome, ativa FROM disciplinas WHERE id = $1', [id]);
   const disc = rows[0];
@@ -946,14 +1009,18 @@ app.get('/api/vagas', autenticar, exigirPerfil(PERFIL.ALUNO, PERFIL.COORD), rota
 // AGENDAMENTOS (aluno)
 // ==========================================
 app.post('/api/agendar', autenticar, exigirPerfil(PERFIL.ALUNO), rota(async (req, res) => {
-  const vagaId = Number.parseInt(req.body.vaga_id, 10);
-  if (!Number.isInteger(vagaId)) {
+  const vagaId = inteiroEstrito(req.body.vaga_id);
+  if (vagaId === null) {
     return res.status(400).json({ sucesso: false, mensagem: 'Vaga inválida.' });
   }
 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+
+    // trava o aluno: pedidos simultâneos dele (mesmo em vagas diferentes da mesma disciplina)
+    // entram um de cada vez, então a checagem de duplicidade abaixo enxerga o anterior
+    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`agendar:${req.usuario.id}`]);
 
     // trava a linha da vaga: dois alunos não passam do limite ao mesmo tempo
     const vagaQ = await client.query(
@@ -969,7 +1036,7 @@ app.post('/api/agendar', autenticar, exigirPerfil(PERFIL.ALUNO), rota(async (req
     const dup = await client.query(
       `SELECT 1 FROM agendamentos a
          JOIN vagas v2 ON v2.id = a.vaga_id
-        WHERE a.usuario_id = $1 AND a.status = 'ATIVO' AND v2.disciplina = $2`,
+        WHERE a.usuario_id = $1 AND a.status = 'ATIVO' AND LOWER(TRIM(v2.disciplina)) = LOWER(TRIM($2))`,
       [req.usuario.id, vaga.disciplina]
     );
     if (dup.rows.length > 0) throw new ErroHttp(409, 'Você já tem um agendamento ativo para esta avaliação.');
@@ -1009,14 +1076,15 @@ app.post('/api/agendar', autenticar, exigirPerfil(PERFIL.ALUNO), rota(async (req
 // reagendar = trocar o horário da MESMA avaliação. O agendamento antigo vira INATIVO (histórico
 // preservado) e um novo é criado, tudo na mesma transação. Vale a regra das 24h do cancelamento.
 app.post('/api/reagendar', autenticar, exigirPerfil(PERFIL.ALUNO), rota(async (req, res) => {
-  const agendamentoId = Number.parseInt(req.body.agendamento_id, 10);
-  const novaVagaId = Number.parseInt(req.body.nova_vaga_id, 10);
-  if (!Number.isInteger(agendamentoId) || !Number.isInteger(novaVagaId)) {
+  const agendamentoId = inteiroEstrito(req.body.agendamento_id);
+  const novaVagaId = inteiroEstrito(req.body.nova_vaga_id);
+  if (agendamentoId === null || novaVagaId === null) {
     return res.status(400).json({ sucesso: false, mensagem: 'Informe o agendamento e o novo horário.' });
   }
 
   const atual = await pool.query(
     `SELECT a.id, a.vaga_id, v.disciplina, v.data_prova, v.horario,
+            (a.entrada_confirmada_em IS NOT NULL) AS entrou,
             (((a.data_agendada::date + a.horario_agendado::time) AT TIME ZONE $3) - NOW()) >= INTERVAL '24 hours' AS pode_alterar
        FROM agendamentos a
        JOIN vagas v ON v.id = a.vaga_id
@@ -1026,6 +1094,9 @@ app.post('/api/reagendar', autenticar, exigirPerfil(PERFIL.ALUNO), rota(async (r
   const ag = atual.rows[0];
   if (!ag) return res.status(404).json({ sucesso: false, mensagem: 'Agendamento ativo não encontrado.' });
 
+  if (ag.entrou) {
+    return res.status(400).json({ sucesso: false, mensagem: 'A entrada nesta prova já foi confirmada pela portaria; não é possível reagendar.' });
+  }
   if (!ag.pode_alterar) {
     await registrarAuditoria(
       pool, 'REAGENDAMENTO_BLOQUEADO',
@@ -1047,7 +1118,9 @@ app.post('/api/reagendar', autenticar, exigirPerfil(PERFIL.ALUNO), rota(async (r
 
     // trava o agendamento atual: dois reagendamentos/cancelamentos simultâneos não passam juntos
     const trava = await client.query(
-      `SELECT id FROM agendamentos WHERE id = $1 AND usuario_id = $2 AND status = 'ATIVO' FOR UPDATE`,
+      `SELECT id FROM agendamentos
+        WHERE id = $1 AND usuario_id = $2 AND status = 'ATIVO' AND entrada_confirmada_em IS NULL
+        FOR UPDATE`,
       [agendamentoId, req.usuario.id]
     );
     if (!trava.rows[0]) throw new ErroHttp(404, 'Agendamento ativo não encontrado.');
@@ -1112,14 +1185,16 @@ app.get('/api/meus-agendamentos', autenticar, exigirPerfil(PERFIL.ALUNO), rota(a
 }));
 
 app.post('/api/cancelar-agendamento', autenticar, exigirPerfil(PERFIL.ALUNO), rota(async (req, res) => {
-  const agendamentoId = Number.parseInt(req.body.agendamento_id, 10);
-  if (!Number.isInteger(agendamentoId)) {
+  const agendamentoId = inteiroEstrito(req.body.agendamento_id);
+  if (agendamentoId === null) {
     return res.status(400).json({ sucesso: false, mensagem: 'Agendamento inválido.' });
   }
+  const NAO_ENCONTRADO = { sucesso: false, mensagem: 'Agendamento ativo não encontrado.' };
 
   // a regra das 24h é calculada no banco, no fuso de São Paulo
   const { rows } = await pool.query(
     `SELECT a.id, v.disciplina,
+            (a.entrada_confirmada_em IS NOT NULL) AS entrou,
             (((a.data_agendada::date + a.horario_agendado::time) AT TIME ZONE $3) - NOW()) >= INTERVAL '24 hours' AS pode_cancelar
        FROM agendamentos a
        JOIN vagas v ON v.id = a.vaga_id
@@ -1127,8 +1202,11 @@ app.post('/api/cancelar-agendamento', autenticar, exigirPerfil(PERFIL.ALUNO), ro
     [agendamentoId, req.usuario.id, FUSO]
   );
   const ag = rows[0];
-  if (!ag) return res.status(404).json({ sucesso: false, mensagem: 'Agendamento ativo não encontrado.' });
+  if (!ag) return res.status(404).json(NAO_ENCONTRADO);
 
+  if (ag.entrou) {
+    return res.status(400).json({ sucesso: false, mensagem: 'A entrada nesta prova já foi confirmada pela portaria; não é possível cancelar.' });
+  }
   if (!ag.pode_cancelar) {
     await registrarAuditoria(
       pool, 'CANCELAMENTO_BLOQUEADO',
@@ -1141,7 +1219,16 @@ app.post('/api/cancelar-agendamento', autenticar, exigirPerfil(PERFIL.ALUNO), ro
     });
   }
 
-  await pool.query(`UPDATE agendamentos SET status = 'INATIVO' WHERE id = $1`, [agendamentoId]);
+  // só cancela se ainda estiver ativo (e sem entrada): pedidos repetidos ao mesmo tempo
+  // cancelam uma única vez e geram um único log
+  const upd = await pool.query(
+    `UPDATE agendamentos SET status = 'INATIVO'
+      WHERE id = $1 AND status = 'ATIVO' AND entrada_confirmada_em IS NULL
+      RETURNING id`,
+    [agendamentoId]
+  );
+  if (upd.rowCount !== 1) return res.status(404).json(NAO_ENCONTRADO);
+
   await registrarAuditoria(
     pool, 'CANCELAMENTO_REALIZADO',
     `Aluno ${req.usuario.nome} cancelou o agendamento de ${ag.disciplina}`,
@@ -1169,10 +1256,10 @@ app.get('/api/notas', autenticar, exigirPerfil(PERFIL.COORD), rota(async (req, r
 }));
 
 app.post('/api/atualizar-nota', autenticar, exigirPerfil(PERFIL.COORD), rota(async (req, res) => {
-  const id = Number.parseInt(req.body.id, 10);
+  const id = inteiroEstrito(req.body.id);
   const nota = Number(String(req.body.nota ?? '').replace(',', '.'));
 
-  if (!Number.isInteger(id)) {
+  if (id === null) {
     return res.status(400).json({ sucesso: false, mensagem: 'Registro inválido.' });
   }
   if (String(req.body.nota ?? '').trim() === '' || !Number.isFinite(nota) || nota < 0 || nota > 10) {
@@ -1205,6 +1292,7 @@ app.get('/api/portaria/consultar', autenticar, exigirPerfil(PERFIL.RECEPCAO), ro
   if (busca.length < 3) {
     return res.status(400).json({ encontrado: false, mensagem: 'Digite ao menos 3 caracteres do nome ou a matrícula.' });
   }
+  exigirTamanho('A busca', busca, LIMITE.BUSCA);
 
   const { rows } = await pool.query(
     `SELECT u.id AS usuario_id, u.nome AS aluno_nome, u.matricula, u.curso, u.foto_url,
@@ -1242,6 +1330,7 @@ app.get('/api/portaria/por-data', autenticar, exigirPerfil(PERFIL.RECEPCAO), rot
   if (!dataValida(data)) {
     return res.status(400).json({ sucesso: false, mensagem: 'Data inválida.' });
   }
+  exigirTamanho('A busca', busca, LIMITE.BUSCA);
 
   // mesmo formato de linha da consulta por aluno, para a tela abrir a confirmação ao clicar no nome
   const { rows } = await pool.query(
@@ -1270,11 +1359,12 @@ app.get('/api/portaria/por-data', autenticar, exigirPerfil(PERFIL.RECEPCAO), rot
 }));
 
 app.post('/api/portaria/confirmar-entrada', autenticar, exigirPerfil(PERFIL.RECEPCAO), rota(async (req, res) => {
-  const ticketId = Number.parseInt(req.body.ticket_id, 10);
-  if (!Number.isInteger(ticketId)) {
+  const ticketId = inteiroEstrito(req.body.ticket_id);
+  if (ticketId === null) {
     return res.status(400).json({ sucesso: false, mensagem: 'Ticket inválido.' });
   }
 
+  // a entrada só pode ser confirmada no dia da prova (fuso de São Paulo)
   const upd = await pool.query(
     `UPDATE agendamentos a
         SET entrada_confirmada_em = NOW(), entrada_confirmada_por = $2
@@ -1284,8 +1374,9 @@ app.post('/api/portaria/confirmar-entrada', autenticar, exigirPerfil(PERFIL.RECE
         AND a.status = 'ATIVO'
         AND a.entrada_confirmada_em IS NULL
         AND ($3::text IS NULL OR v.polo = $3)
+        AND a.data_agendada::date = (NOW() AT TIME ZONE $4)::date
       RETURNING a.aluno_nome`,
-    [ticketId, req.usuario.nome, req.usuario.polo]
+    [ticketId, req.usuario.nome, req.usuario.polo, FUSO]
   );
 
   if (upd.rows.length === 0) {
@@ -1295,6 +1386,17 @@ app.post('/api/portaria/confirmar-entrada', autenticar, exigirPerfil(PERFIL.RECE
     );
     if (ja.rows.length > 0) {
       return res.status(409).json({ sucesso: false, mensagem: 'A entrada deste aluno já foi confirmada.' });
+    }
+    // existe e é deste polo, mas a prova não é hoje
+    const outroDia = await pool.query(
+      `SELECT a.data_agendada::date AS data FROM agendamentos a
+         JOIN vagas v ON v.id = a.vaga_id
+        WHERE a.id = $1 AND a.status = 'ATIVO' AND ($2::text IS NULL OR v.polo = $2)`,
+      [ticketId, req.usuario.polo]
+    );
+    if (outroDia.rows.length > 0) {
+      const dataBr = String(outroDia.rows[0].data).split('-').reverse().join('/');
+      return res.status(400).json({ sucesso: false, mensagem: `A entrada só pode ser confirmada no dia da prova (${dataBr}).` });
     }
     return res.status(404).json({ sucesso: false, mensagem: 'Agendamento ativo não encontrado para este polo.' });
   }
