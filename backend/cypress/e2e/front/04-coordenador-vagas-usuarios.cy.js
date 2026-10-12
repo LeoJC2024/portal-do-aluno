@@ -242,9 +242,8 @@ describe('Coordenação: modal de adição de vagas', () => {
     cy.confirmarSwal(); // o aviso cobre a tela: fecha antes de clicar em outro botão
     cy.get('#modalVaga').contains('button', 'Cancelar').click();
 
-    cy.get('#btnAdicionarVaga').click();
-    cy.get('#vagaData').clear().type(dataSP(10));
-    cy.get('#vagaAgendFim').clear().type(dataSP(12));
+    cy.get('#btnAdicionarVaga').click(); // reabre limpo: preenche de novo
+    preencher({ data: dataSP(10), agFim: dataSP(12) });
     enviar();
     cy.swal('Período inválido', 'até a data da prova');
     cy.confirmarSwal();
@@ -262,7 +261,7 @@ describe('Coordenação: modal de adição de vagas', () => {
     cy.get('@vaga.all').should('have.length', 0);
   });
 
-  it('envia todos os campos, fecha o modal, limpa o formulário e atualiza a tabela', () => {
+  it('envia todos os campos, avisa sucesso, mantém o modal aberto e preenchido e atualiza a tabela', () => {
     const data = dataSP(10);
     cy.mockApi('POST', '/api/cadastrar-vaga', { sucesso: true, mensagem: 'Vagas cadastradas e log gerado com sucesso!', id: 5 }, { alias: 'vaga' });
     preencher({ data });
@@ -275,11 +274,26 @@ describe('Coordenação: modal de adição de vagas', () => {
     });
     cy.swal('Sucesso!', 'Vagas cadastradas');
     cy.confirmarSwal(); // o aviso cobre a tela: fecha antes de clicar em outro botão
-    cy.get('#modalVaga').should('have.class', 'hidden');
+    cy.get('#modalVaga').should('have.class', 'flex').and('be.visible');
+    cy.get('#vagaPolo').should('have.value', 'Polo EaD Resende');
+    cy.get('#vagaCurso').should('have.value', 'Engenharia de Software');
+    cy.get('#vagaDisciplina').should('have.value', 'A');
+    cy.get('#vagaData').should('have.value', data);
+    cy.get('#vagaHorarioInicio').should('have.value', '08:00');
+    cy.get('#vagaHorarioFim').should('have.value', '10:30');
+    cy.get('#vagaAgendInicio').should('have.value', hojeSP());
+    cy.get('#vagaAgendFim').should('have.value', dataSP(5));
+    cy.get('#vagaLimite').should('have.value', '40');
     cy.wait('@vagas'); // recarregou a tabela
     cy.wait('@logs'); // atualizou a auditoria
+
+    // só fecha pelo X / Cancelar; ao reabrir, vem limpo
+    cy.get('#modalVaga').contains('button', 'Cancelar').click();
+    cy.get('#modalVaga').should('have.class', 'hidden');
     cy.get('#btnAdicionarVaga').click();
     cy.get('#vagaLimite').should('have.value', '');
+    cy.get('#vagaData').should('have.value', '');
+    cy.get('#vagaCurso').should('have.value', '');
   });
 
   it('erro do servidor (ex.: agenda duplicada) é exibido e o modal continua aberto', () => {
@@ -289,6 +303,7 @@ describe('Coordenação: modal de adição de vagas', () => {
     cy.swal('Erro', 'Já existe uma agenda');
     cy.confirmarSwal();
     cy.get('#modalVaga').should('have.class', 'flex');
+    cy.get('#vagaLimite').should('have.value', '40');
   });
 });
 

@@ -123,6 +123,12 @@ function abrirModal(id) {
   modal.classList.add('flex');
 }
 
+// o modal de vagas não se fecha ao cadastrar (mantém os campos); ao reabrir, começa limpo
+function abrirModalVaga() {
+  byId('formVaga').reset();
+  abrirModal('modalVaga');
+}
+
 function fecharModal(id) {
   const modal = byId(id);
   if (!modal) return;
@@ -393,7 +399,6 @@ function abrirDetalheVaga(id) {
 
 async function enviarVaga(e) {
   e.preventDefault();
-  const form = e.currentTarget;
   const botao = e.submitter;
 
   const inicio = byId('vagaHorarioInicio').value;
@@ -432,8 +437,6 @@ async function enviarVaga(e) {
     const { ok, dados } = await apiFetch('/api/cadastrar-vaga', { method: 'POST', body: JSON.stringify(corpo) });
 
     if (ok && dados?.sucesso) {
-      fecharModal('modalVaga');
-      form.reset();
       Swal.fire({ title: 'Sucesso!', text: dados.mensagem, icon: 'success', confirmButtonColor: '#047857' });
       carregarVagas();
       carregarAuditoria();
