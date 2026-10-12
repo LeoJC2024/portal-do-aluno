@@ -38,6 +38,7 @@ if (MODO_TESTE) {
 const MAX_TENTATIVAS_CODIGO = 5;
 const VALIDADE_CODIGO_MIN = 15;        // validade do código de recuperação
 const INTERVALO_MIN_CODIGO_SEG = 60;   // intervalo mínimo entre dois pedidos de código da mesma matrícula
+const MAX_BYTES_SENHA = 72;            // o bcrypt só usa os primeiros 72 bytes da senha
 
 // DATE vem como 'YYYY-MM-DD' (sem virar Date e sem deslocar de fuso)
 types.setTypeParser(1082, (v) => v);
@@ -134,6 +135,8 @@ function inteiroEstrito(valor) {
 
 // tamanhos máximos dos campos de texto
 const LIMITE = { NOME: 150, EMAIL: 254, CURSO: 100, POLO: 100, BUSCA: 100 };
+// teto de linhas das listagens que antes não tinham LIMIT (evita respostas gigantes)
+const LIMITE_LISTAGEM = 1000;
 function exigirTamanho(rotulo, valor, max) {
   if (valor.length > max) throw new ErroHttp(400, `${rotulo} deve ter no máximo ${max} caracteres.`);
 }
@@ -418,7 +421,8 @@ app.post('/api/cadastrar-usuario', autenticar, exigirPerfil(PERFIL.COORD), rota(
   const nome = String(req.body.nome ?? '').trim();
   const curso = String(req.body.curso ?? '').trim();
   const tipo = String(req.body.tipo ?? '').trim();
-  const email = String(req.body.email ?? '').trim();
+  // e-mail sempre gravado em minúsculas (o índice único do banco também compara sem maiúsculas)
+  const email = String(req.body.email ?? '').trim().toLowerCase();
   const foto = req.body.foto || null;
   const polo = String(req.body.polo ?? '').trim();
 
@@ -484,7 +488,11 @@ app.post('/api/cadastrar-usuario', autenticar, exigirPerfil(PERFIL.COORD), rota(
     await client.query('ROLLBACK').catch(() => {});
     if (fotoEnviada) await removerFoto(fotoEnviada.caminho);
     if (err.code === '23505') {
-      return res.status(400).json({ sucesso: false, mensagem: 'Este e-mail já está cadastrado (se o usuário foi excluído, reative-o na lista de usuários).' });
+      // o nome do índice/constraint (ou o detalhe do erro) diz qual campo repetiu
+      if (/email/i.test(`${err.constraint || ''} ${err.detail || ''}`)) {
+        return res.status(400).json({ sucesso: false, mensagem: 'Este e-mail já está cadastrado (se o usuário foi excluído, reative-o na lista de usuários).' });
+      }
+      return res.status(409).json({ sucesso: false, mensagem: 'A matrícula gerada para este cadastro já existe. Tente novamente; se o erro continuar, avise o suporte.' });
     }
     throw err;
   } finally {
@@ -743,6 +751,13 @@ app.post('/api/recuperar-senha', limitadorSenha, rota(async (req, res) => {
   if (novaSenha.length < 8) {
     return res.status(400).json({ sucesso: false, mensagem: 'A nova senha deve ter pelo menos 8 caracteres.' });
   }
+  // o bcrypt ignora o que passa de 72 bytes; letras acentuadas e alguns símbolos ocupam 2 bytes ou mais
+  if (Buffer.byteLength(novaSenha, 'utf8') > MAX_BYTES_SENHA) {
+    return res.status(400).json({
+      sucesso: false,
+      mensagem: `A nova senha deve ter no máximo ${MAX_BYTES_SENHA} caracteres (letras acentuadas e alguns símbolos contam como 2 ou mais).`
+    });
+  }
 
   const INVALIDO = { sucesso: false, mensagem: 'Código ou senha provisória inválidos ou expirados.' };
 
@@ -828,6 +843,10 @@ app.post('/api/cadastrar-vaga', autenticar, exigirPerfil(PERFIL.COORD), rota(asy
   const hoje = new Date().toLocaleDateString('sv-SE', { timeZone: FUSO });
   if (data < hoje) {
     return res.status(400).json({ sucesso: false, mensagem: 'A data da prova não pode estar no passado.' });
+  }
+  const agoraHora = new Date().toLocaleTimeString('sv-SE', { timeZone: FUSO }).slice(0, 5);
+  if (data === hoje && inicio <= agoraHora) {
+    return res.status(400).json({ sucesso: false, mensagem: 'O horário de início da prova já passou.' });
   }
   if (limite === null || limite < 1 || limite > 5000) {
     return res.status(400).json({ sucesso: false, mensagem: 'O limite de vagas deve ser um número inteiro entre 1 e 5000.' });
@@ -999,7 +1018,8 @@ app.get('/api/vagas', autenticar, exigirPerfil(PERFIL.ALUNO, PERFIL.COORD), rota
       WHERE ((v.data_prova + v.horario::time) AT TIME ZONE $1) > NOW()
         AND ($2::text IS NULL OR v.curso IS NULL OR LOWER(TRIM(v.curso)) = LOWER(TRIM($2)))
         AND ($2::text IS NULL OR v.agendamento_fim IS NULL OR v.agendamento_fim >= (NOW() AT TIME ZONE $1)::date)
-      ORDER BY v.data_prova, v.horario`,
+      ORDER BY v.data_prova, v.horario
+      LIMIT ${LIMITE_LISTAGEM}`,
     [FUSO, cursoDoAluno]
   );
   res.json(rows);
@@ -1097,7 +1117,8 @@ app.post('/api/reagendar', autenticar, exigirPerfil(PERFIL.ALUNO), rota(async (r
   if (ag.entrou) {
     return res.status(400).json({ sucesso: false, mensagem: 'A entrada nesta prova já foi confirmada pela portaria; não é possível reagendar.' });
   }
-  if (!ag.pode_alterar) {
+
+  const bloquearPor24h = async () => {
     await registrarAuditoria(
       pool, 'REAGENDAMENTO_BLOQUEADO',
       `Tentativa de reagendamento negada (< 24h) de ${ag.disciplina} pelo aluno ${req.usuario.nome}`,
@@ -1107,7 +1128,9 @@ app.post('/api/reagendar', autenticar, exigirPerfil(PERFIL.ALUNO), rota(async (r
       sucesso: false,
       mensagem: 'Ação Bloqueada: o reagendamento só é permitido com mais de 24 horas de antecedência da prova.'
     });
-  }
+  };
+
+  if (!ag.pode_alterar) return bloquearPor24h();
   if (ag.vaga_id === novaVagaId) {
     return res.status(400).json({ sucesso: false, mensagem: 'Escolha um horário diferente do atual.' });
   }
@@ -1124,6 +1147,18 @@ app.post('/api/reagendar', autenticar, exigirPerfil(PERFIL.ALUNO), rota(async (r
       [agendamentoId, req.usuario.id]
     );
     if (!trava.rows[0]) throw new ErroHttp(404, 'Agendamento ativo não encontrado.');
+
+    // refaz a regra das 24h já com a linha travada: o agendamento pode ter mudado (ou o tempo passado)
+    // entre a checagem acima e o bloqueio. clock_timestamp() é a hora real, não a do início da transação
+    const prazo = await client.query(
+      `SELECT (((data_agendada::date + horario_agendado::time) AT TIME ZONE $2) - clock_timestamp()) >= INTERVAL '24 hours' AS pode_alterar
+         FROM agendamentos WHERE id = $1`,
+      [agendamentoId, FUSO]
+    );
+    if (!prazo.rows[0].pode_alterar) {
+      await client.query('ROLLBACK');
+      return bloquearPor24h();
+    }
 
     const vagaQ = await client.query(
       `SELECT v.*, ((v.data_prova + v.horario::time) AT TIME ZONE $2) > NOW() AS futura,
@@ -1346,7 +1381,8 @@ app.get('/api/portaria/por-data', autenticar, exigirPerfil(PERFIL.RECEPCAO), rot
         AND a.status = 'ATIVO'
         AND ($2::text IS NULL OR v.polo = $2)
         AND ($3::text IS NULL OR u.nome ILIKE $3 OR u.matricula ILIKE $3)
-      ORDER BY a.horario_agendado, u.nome`,
+      ORDER BY a.horario_agendado, u.nome
+      LIMIT ${LIMITE_LISTAGEM}`,
     [data, req.usuario.polo, busca ? `%${escapeLike(busca)}%` : null]
   );
 

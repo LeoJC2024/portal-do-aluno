@@ -45,7 +45,19 @@ const COLUNAS_EXIGIDAS = {
   vagas: ['horario_fim', 'curso', 'agendamento_inicio', 'agendamento_fim', 'criado_em', 'criado_por'],
   disciplinas: ['nome', 'ativa', 'criado_em', 'criado_por']
 };
-const INDICES_EXIGIDOS = ['uq_usuarios_matricula_ci', 'uq_agendamento_ativo', 'uq_vagas_disciplina_data_hora_polo', 'uq_disciplinas_nome_ci'];
+const INDICES_EXIGIDOS = ['uq_usuarios_matricula_ci', 'uq_usuarios_email_ci', 'uq_agendamento_ativo', 'uq_vagas_disciplina_data_hora_polo', 'uq_disciplinas_nome_ci'];
+
+// faz uma requisição HTTP e devolve { status, body }
+async function requisitar(r) {
+  const resp = await fetch(r.url, {
+    method: r.method || 'GET',
+    headers: { 'Content-Type': 'application/json', ...(r.headers || {}) },
+    body: r.body ? JSON.stringify(r.body) : undefined
+  });
+  let body = null;
+  try { body = await resp.json(); } catch (_) { /* sem JSON */ }
+  return { status: resp.status, body };
+}
 
 async function esquemaDesatualizado(db) {
   const faltando = [];
@@ -123,16 +135,27 @@ module.exports = defineConfig({
         },
         // várias requisições ao mesmo tempo (teste de concorrência)
         async paralelo(requisicoes) {
-          return Promise.all(requisicoes.map(async (r) => {
-            const resp = await fetch(r.url, {
-              method: r.method || 'GET',
-              headers: { 'Content-Type': 'application/json', ...(r.headers || {}) },
-              body: r.body ? JSON.stringify(r.body) : undefined
-            });
-            let body = null;
-            try { body = await resp.json(); } catch (_) { /* sem JSON */ }
-            return { status: resp.status, body };
-          }));
+          return Promise.all(requisicoes.map(requisitar));
+        },
+        // abre uma transação no banco de teste, roda os comandos (que travam as linhas alteradas),
+        // dispara a requisição e só faz COMMIT depois de "esperaMs". Reproduz a corrida entre uma
+        // checagem feita fora da transação do servidor e o bloqueio FOR UPDATE dentro dela.
+        async requisicaoDuranteTransacao({ comandos, requisicao, esperaMs = 3000 }) {
+          const client = await bancoDeTeste().connect();
+          try {
+            await client.query('BEGIN');
+            for (const c of comandos) await client.query(c.sql, c.params || []);
+            const resposta = requisitar(requisicao);
+            resposta.catch(() => {}); // a falha (se houver) aparece no await abaixo
+            await new Promise((ok) => setTimeout(ok, esperaMs));
+            await client.query('COMMIT');
+            return await resposta;
+          } catch (e) {
+            await client.query('ROLLBACK').catch(() => {});
+            throw e;
+          } finally {
+            client.release();
+          }
         },
         // token assinado com o JWT_SECRET de teste (expirado ou de usuário inexistente)
         gerarToken({ payload, opcoes }) {

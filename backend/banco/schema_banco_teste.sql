@@ -21,17 +21,35 @@ CREATE TABLE IF NOT EXISTS usuarios (
   trocar_senha        BOOLEAN NOT NULL DEFAULT false,
   criado_em           TIMESTAMP DEFAULT now()
 );
+CREATE UNIQUE INDEX IF NOT EXISTS uq_usuarios_matricula_ci ON usuarios (LOWER(matricula));
+CREATE UNIQUE INDEX IF NOT EXISTS uq_usuarios_email_ci ON usuarios (LOWER(email));
 
 CREATE TABLE IF NOT EXISTS vagas (
-  id           SERIAL PRIMARY KEY,
-  polo         TEXT,
-  curso        TEXT,
-  disciplina   TEXT,
-  data_prova   DATE,
-  horario      TIME,
-  horario_fim  TIME,
-  limite_vagas INTEGER
+  id                 SERIAL PRIMARY KEY,
+  polo               TEXT,
+  curso              TEXT,
+  disciplina         TEXT,
+  data_prova         DATE,
+  horario            TIME,
+  horario_fim        TIME,
+  limite_vagas       INTEGER,
+  agendamento_inicio DATE,
+  agendamento_fim    DATE,
+  criado_em          TIMESTAMPTZ DEFAULT now(),
+  criado_por         TEXT
 );
+CREATE UNIQUE INDEX IF NOT EXISTS uq_vagas_disciplina_data_hora_polo
+    ON vagas (polo, LOWER(TRIM(disciplina)), data_prova, horario);
+
+CREATE TABLE IF NOT EXISTS disciplinas (
+  id         SERIAL PRIMARY KEY,
+  nome       TEXT NOT NULL,
+  ativa      BOOLEAN NOT NULL DEFAULT true,
+  criado_em  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  criado_por TEXT
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_disciplinas_nome_ci ON disciplinas (LOWER(TRIM(nome)));
+INSERT INTO disciplinas (nome) VALUES ('A'), ('B'), ('C') ON CONFLICT DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS agendamentos (
   id                     SERIAL PRIMARY KEY,

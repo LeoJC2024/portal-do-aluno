@@ -16,6 +16,8 @@ ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS polo text;
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS ativo boolean NOT NULL DEFAULT true;
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS trocar_senha boolean NOT NULL DEFAULT false;
 CREATE UNIQUE INDEX IF NOT EXISTS uq_usuarios_matricula_ci ON usuarios (LOWER(matricula));
+-- lote B: e-mail único sem diferenciar maiúsculas (se falhar, veja a consulta de diagnóstico em migracao_lote_b.sql)
+CREATE UNIQUE INDEX IF NOT EXISTS uq_usuarios_email_ci ON usuarios (LOWER(email));
 
 -- agendamentos
 ALTER TABLE agendamentos ADD COLUMN IF NOT EXISTS usuario_id bigint REFERENCES usuarios(id);

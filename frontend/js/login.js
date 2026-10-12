@@ -119,6 +119,10 @@ async function enviarRecuperacaoSenha(event) {
     return;
   }
 
+  // evita clique duplo enquanto o pedido está em andamento
+  const botao = event.submitter || document.querySelector('#formConfirmarCodigo button[type=submit]');
+  if (botao) botao.disabled = true;
+
   try {
     const { ok, dados } = await apiFetch('/api/recuperar-senha', {
       method: 'POST',
@@ -148,6 +152,8 @@ async function enviarRecuperacaoSenha(event) {
       text: 'Não foi possível conectar ao servidor para redefinir a senha.',
       confirmButtonColor: '#065f46'
     });
+  } finally {
+    if (botao) botao.disabled = false;
   }
 }
 
