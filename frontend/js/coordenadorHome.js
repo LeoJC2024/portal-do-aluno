@@ -3,8 +3,8 @@ let disciplinas = [];
 let fotoCadastro = null;      // foto escolhida no formulário (data URL já reduzida)
 let usuarioFotoId = null;     // aluno cuja foto está sendo trocada pela lista
 
-const CLASSES_ABA_ATIVA = ['font-bold', 'bg-emerald-800', 'text-white', 'border', 'border-emerald-700', 'shadow-sm'];
-const CLASSES_ABA_INATIVA = ['text-emerald-200', 'hover:text-white', 'hover:bg-emerald-800/50'];
+const CLASSES_ABA_ATIVA = ['aba-ativa', 'font-bold', 'bg-emerald-800', 'text-white', 'shadow-sm'];
+const CLASSES_ABA_INATIVA = ['text-emerald-800', 'hover:bg-emerald-100', 'hover:text-emerald-900'];
 
 const byId = (id) => document.getElementById(id);
 const hojeSP = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });
@@ -869,11 +869,13 @@ function switchTab(tabId, botao) {
   document.querySelectorAll('.tab-btn').forEach((b) => {
     b.classList.remove(...CLASSES_ABA_ATIVA);
     b.classList.add(...CLASSES_ABA_INATIVA);
+    b.removeAttribute('aria-current');
   });
 
   byId(`page-${tabId}`).classList.remove('hidden');
   botao.classList.remove(...CLASSES_ABA_INATIVA);
   botao.classList.add(...CLASSES_ABA_ATIVA);
+  botao.setAttribute('aria-current', 'page');
 
   if (tabId === 'oferta') { carregarVagas(); carregarCursos(); }
   if (tabId === 'usuarios') carregarUsuarios();

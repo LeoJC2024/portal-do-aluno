@@ -56,7 +56,7 @@ function definirStatusBanco(ok) {
 
   ponto.classList.remove('bg-slate-500', 'bg-emerald-500', 'bg-rose-500');
   ponto.classList.add(ok ? 'bg-emerald-500' : 'bg-rose-500');
-  texto.textContent = ok ? 'DB Status: OK' : 'DB Status: ERRO';
+  texto.textContent = ok ? 'Banco de dados: conectado' : 'Banco de dados: fora do ar';
 }
 
 function classificarAcao(acao) {

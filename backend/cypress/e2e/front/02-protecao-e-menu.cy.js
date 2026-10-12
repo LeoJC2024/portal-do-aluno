@@ -4,7 +4,7 @@ const PAGINAS = {
   aluno: { arquivo: 'alunoHome.html', sistema: 'Portal do Aluno' },
   coordenador: { arquivo: 'coordenadorHome.html', sistema: 'Gestão Acadêmica' },
   recepcao: { arquivo: 'recepcaoHome.html', sistema: 'painel de portaria' },
-  audit: { arquivo: 'auditHome.html', sistema: 'System Audit & Database Logs' }
+  audit: { arquivo: 'auditHome.html', sistema: 'sistema de auditoria' }
 };
 
 describe('Proteção das páginas (sem login)', () => {

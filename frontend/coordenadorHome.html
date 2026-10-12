@@ -19,7 +19,7 @@
     <header class="barra-topo bg-emerald-900 text-white shadow-md border-b-4 border-emerald-600 sticky top-0 z-50">
         <div class="conteudo-largura h-full flex items-center justify-between gap-4">
 
-            <div class="flex items-center space-x-2 shrink-0">
+            <div class="flex items-center space-x-3 shrink-0">
                 <div
                     class="bg-emerald-800 px-3 py-1.5 rounded-xl border border-emerald-700 flex items-center justify-center shadow-inner">
                     <svg class="h-8 w-auto text-emerald-400" viewBox="0 0 150 40" fill="none"
@@ -35,6 +35,8 @@
                 <div class="h-8 w-px bg-emerald-700 hidden sm:block"></div>
                 <div class="hidden lg:flex items-center gap-2">
                     <span class="text-lg font-bold tracking-tight text-emerald-50">Gestão Acadêmica</span>
+                    <span
+                        class="bg-emerald-800 text-emerald-200 text-xs font-mono font-semibold px-2.5 py-0.5 rounded-full border border-emerald-700">COORDENAÇÃO</span>
                 </div>
             </div>
 
@@ -69,27 +71,28 @@
         </div>
     </header>
 
-    <!-- ABAS DA COORDENAÇÃO: faixa própria logo abaixo da barra de 80 px (rola na horizontal se não couber) -->
-    <nav class="bg-emerald-900 border-b border-emerald-700 shadow-sm sticky top-20 z-40" aria-label="Abas da coordenação">
-        <div class="conteudo-largura flex items-center gap-1 sm:gap-2 overflow-x-auto py-2 text-xs sm:text-sm font-medium">
+    <!-- ABAS DA COORDENAÇÃO: faixa própria logo abaixo da barra, alinhada com o conteúdo (1280 px);
+         no celular rola na horizontal, com sombra nas bordas -->
+    <nav class="abas-faixa conteudo-largura mt-6" aria-label="Abas da coordenação">
+        <div class="abas-rolagem flex items-center gap-1 overflow-x-auto p-1 rounded-xl border border-emerald-200 shadow-sm text-emerald-900 text-xs sm:text-sm font-medium">
             <button onclick="switchTab('oferta', this)" id="btn-oferta"
-                class="tab-btn px-2 sm:px-3 py-2 rounded-lg transition font-bold bg-emerald-800 text-white border border-emerald-700 shadow-sm cursor-pointer whitespace-nowrap flex items-center gap-1 sm:gap-2">
+                class="tab-btn aba-item aba-ativa px-2 sm:px-3 transition font-bold bg-emerald-800 text-white shadow-sm cursor-pointer whitespace-nowrap flex items-center gap-1 sm:gap-2" aria-current="page">
                 <i class="fa-solid fa-circle-plus"></i> <span class="hidden md:inline">1. </span>Adição de Vagas
             </button>
             <button onclick="switchTab('usuarios', this)" id="btn-usuarios"
-                class="tab-btn px-2 sm:px-3 py-2 rounded-lg transition text-emerald-200 hover:text-white hover:bg-emerald-800/50 cursor-pointer whitespace-nowrap flex items-center gap-1 sm:gap-2">
+                class="tab-btn aba-item px-2 sm:px-3 transition text-emerald-800 hover:bg-emerald-100 hover:text-emerald-900 cursor-pointer whitespace-nowrap flex items-center gap-1 sm:gap-2">
                 <i class="fa-solid fa-user-plus"></i> <span class="hidden md:inline">2. </span>Cadastro de Usuários
             </button>
             <button onclick="switchTab('disciplinas', this)" id="btn-disciplinas"
-                class="tab-btn px-2 sm:px-3 py-2 rounded-lg transition text-emerald-200 hover:text-white hover:bg-emerald-800/50 cursor-pointer whitespace-nowrap flex items-center gap-1 sm:gap-2">
+                class="tab-btn aba-item px-2 sm:px-3 transition text-emerald-800 hover:bg-emerald-100 hover:text-emerald-900 cursor-pointer whitespace-nowrap flex items-center gap-1 sm:gap-2">
                 <i class="fa-solid fa-book"></i> <span class="hidden md:inline">3. </span>Disciplinas
             </button>
             <button onclick="switchTab('sincronizacao', this)" id="btn-sincronizacao"
-                class="tab-btn px-2 sm:px-3 py-2 rounded-lg transition text-emerald-200 hover:text-white hover:bg-emerald-800/50 cursor-pointer whitespace-nowrap flex items-center gap-1 sm:gap-2">
+                class="tab-btn aba-item px-2 sm:px-3 transition text-emerald-800 hover:bg-emerald-100 hover:text-emerald-900 cursor-pointer whitespace-nowrap flex items-center gap-1 sm:gap-2">
                 <i class="fa-solid fa-rotate"></i> <span class="hidden md:inline">4. </span>Sincronização de Notas
             </button>
             <button onclick="switchTab('auditoria', this)" id="btn-auditoria"
-                class="tab-btn px-2 sm:px-3 py-2 rounded-lg transition text-emerald-200 hover:text-white hover:bg-emerald-800/50 cursor-pointer whitespace-nowrap flex items-center gap-1 sm:gap-2">
+                class="tab-btn aba-item px-2 sm:px-3 transition text-emerald-800 hover:bg-emerald-100 hover:text-emerald-900 cursor-pointer whitespace-nowrap flex items-center gap-1 sm:gap-2">
                 <i class="fa-solid fa-shield-halved"></i> <span class="hidden md:inline">5. </span>Trilha de Auditoria
             </button>
         </div>

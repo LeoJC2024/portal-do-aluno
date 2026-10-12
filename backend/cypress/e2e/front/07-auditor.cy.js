@@ -46,7 +46,7 @@ describe('Auditoria (perfil AUDIT)', () => {
     cy.get('#statTotalTransacoes').should('have.text', '1.234');
     cy.get('#statRegistrosInativos').should('have.text', '7');
     cy.get('#statViolacoes').should('have.text', '2');
-    cy.get('#dbStatusTexto').should('have.text', 'DB Status: OK');
+    cy.get('#dbStatusTexto').should('have.text', 'Banco de dados: conectado');
     cy.get('#dbStatusDot').should('have.class', 'bg-emerald-500');
   });
 
@@ -99,7 +99,7 @@ describe('Auditoria (perfil AUDIT)', () => {
 
   it('erro do servidor marca o banco como ERRO e avisa na tabela', () => {
     abrir({ sucesso: false, mensagem: 'Erro interno ao carregar logs de auditoria.' }, 500);
-    cy.get('#dbStatusTexto').should('have.text', 'DB Status: ERRO');
+    cy.get('#dbStatusTexto').should('have.text', 'Banco de dados: fora do ar');
     cy.get('#dbStatusDot').should('have.class', 'bg-rose-500');
     cy.contains('Erro ao carregar os logs do servidor.');
   });
@@ -165,7 +165,7 @@ describe('Auditoria (perfil AUDIT): filtros no servidor', () => {
     escolherData('#filtroDataInicio', '2030-05-10');
     cy.wait('@invalido');
     cy.get('#auditTable tbody').should('contain.text', 'A data inicial não pode ser depois da data final.');
-    cy.get('#dbStatusTexto').should('have.text', 'DB Status: OK');
+    cy.get('#dbStatusTexto').should('have.text', 'Banco de dados: conectado');
     cy.get('#auditoriaAnterior').should('be.disabled');
     cy.get('#auditoriaProxima').should('be.disabled');
   });

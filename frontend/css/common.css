@@ -9,6 +9,12 @@
   flex-shrink: 0;
 }
 
+/* logo UNIFAA da barra: mesma fonte em todas as telas
+   (o * { font-family: Inter } da Recepção sobrescrevia a fonte do SVG) */
+.barra-topo svg text {
+  font-family: Arial, sans-serif;
+}
+
 /* ---------- largura e espaçamento do conteúdo ---------- */
 .conteudo-largura {
   width: 100%;
@@ -136,4 +142,39 @@ input[type="search"] {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+/* ---------- faixa de abas logo abaixo da barra (Coordenação) ---------- */
+/* faixa clara própria (mesmo estilo do aviso "Segurança & RBAC"), separada da barra */
+.abas-rolagem {
+  scrollbar-width: none; /* a sombra nas bordas já indica que há mais abas */
+  /* sombras nas bordas só quando há conteúdo escondido daquele lado:
+     as duas primeiras camadas (cor da faixa) rolam junto e cobrem as sombras nas pontas */
+  background:
+    linear-gradient(to right, #ecfdf5 30%, rgba(236, 253, 245, 0)) left / 40px 100% no-repeat local,
+    linear-gradient(to left, #ecfdf5 30%, rgba(236, 253, 245, 0)) right / 40px 100% no-repeat local,
+    linear-gradient(to right, rgba(6, 78, 59, 0.18), rgba(6, 78, 59, 0)) left / 16px 100% no-repeat scroll,
+    linear-gradient(to left, rgba(6, 78, 59, 0.18), rgba(6, 78, 59, 0)) right / 16px 100% no-repeat scroll,
+    #ecfdf5; /* emerald-50, o mesmo do aviso */
+}
+
+.abas-rolagem::-webkit-scrollbar { display: none; }
+
+/* barra -> faixa (mt-6 no nav) e faixa -> cartão de título: os mesmos 24 px usados entre os cartões */
+.abas-faixa + .conteudo-principal { padding-top: 1.5rem; }
+
+/* abas centralizadas quando cabem; quando não cabem, as margens viram 0 e a rolagem começa na primeira
+   (justify-content: center cortaria o começo da lista no celular) */
+.abas-rolagem > :first-child { margin-left: auto; }
+.abas-rolagem > :last-child { margin-right: auto; }
+
+.aba-item {
+  height: 2.5rem; /* 40 px: altura mínima de toque */
+  border-radius: 0.5rem;
+  flex-shrink: 0;
+}
+
+.aba-item:focus-visible {
+  outline: 2px solid #059669; /* emerald-600 */
+  outline-offset: 1px;
 }

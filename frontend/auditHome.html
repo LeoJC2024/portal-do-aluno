@@ -13,26 +13,38 @@
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
 
-<body data-sistema="System Audit &amp; Database Logs" class="bg-slate-900 font-sans text-slate-100 antialiased min-h-screen flex flex-col">
+<body data-sistema="sistema de auditoria" class="bg-slate-900 font-sans text-slate-100 antialiased min-h-screen flex flex-col">
 
-    <!-- Header Técnico / Infraestrutura -->
-    <header class="barra-topo bg-slate-800 border-b border-slate-700 shadow-md sticky top-0 z-50">
+    <!-- HEADER / NAVBAR SUPERIOR PADRONIZADO (mesmo esqueleto das outras telas, nas cores escuras do Auditor) -->
+    <header class="barra-topo bg-slate-800 text-white shadow-md border-b-4 border-emerald-600 sticky top-0 z-50">
         <div class="conteudo-largura h-full flex items-center justify-between gap-4">
-            <div class="flex items-center space-x-3 min-w-0">
-                <div class="bg-slate-700 p-2 rounded-lg text-emerald-400 font-mono font-bold shrink-0">
-                    &gt;_
+
+            <div class="flex items-center space-x-3 shrink-0">
+                <div
+                    class="bg-slate-900/60 px-3 py-1.5 rounded-xl border border-slate-600 flex items-center justify-center shadow-inner">
+                    <svg class="h-8 w-auto text-emerald-400" viewBox="0 0 150 40" fill="none"
+                        xmlns="http://www.w3.org/2000/svg">
+                        <path d="M18 10L3 18L18 26L33 18L18 10Z" fill="currentColor" />
+                        <path d="M8 22V27C8 29.5 12.5 31.5 18 31.5C23.5 31.5 28 29.5 28 27V22" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" />
+                        <path d="M30 19.5V28" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                        <text x="40" y="27" fill="#FFFFFF" font-family="Arial, sans-serif" font-weight="900"
+                            font-size="20" letter-spacing="1">UNIFAA</text>
+                    </svg>
                 </div>
-                <div class="min-w-0 flex items-center">
-                    <span class="text-base sm:text-xl font-bold tracking-tight text-white truncate">System Audit &amp; Database Logs</span>
-                    <span class="hidden lg:inline text-xs bg-emerald-900 text-emerald-300 px-2 py-0.5 rounded ml-2 font-mono whitespace-nowrap">PostgreSQL
-                        Direct Engine</span>
+                <div class="h-8 w-px bg-slate-600 hidden sm:block"></div>
+                <div class="hidden lg:flex items-center gap-2">
+                    <span class="text-lg font-bold tracking-tight text-slate-50">Auditoria do Sistema</span>
+                    <span
+                        class="bg-slate-900/60 text-emerald-300 text-xs font-mono font-semibold px-2.5 py-0.5 rounded-full border border-slate-600">CONSULTA
+                        DE REGISTROS</span>
                 </div>
             </div>
 
             <div class="flex items-center gap-4 shrink-0">
-                <div class="hidden sm:flex items-center space-x-2 text-xs font-mono text-slate-400">
-                    <span id="dbStatusDot" class="w-3 h-3 rounded-full bg-slate-500 inline-block animate-pulse"></span>
-                    <span id="dbStatusTexto">DB Status: verificando...</span>
+                <div class="hidden sm:flex items-center gap-2 text-xs font-medium text-slate-300 bg-slate-900/60 border border-slate-700 rounded-full px-3 py-1">
+                    <span id="dbStatusDot" class="w-2.5 h-2.5 rounded-full bg-slate-500 inline-block animate-pulse"></span>
+                    <span id="dbStatusTexto">Banco de dados: verificando...</span>
                 </div>
 
                 <!-- Perfil e Botão Sair -->
