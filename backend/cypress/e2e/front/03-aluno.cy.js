@@ -347,3 +347,224 @@ describe('Portal do aluno: reagendamento', () => {
     cy.get('#avisoReagendar').should('have.class', 'hidden');
   });
 });
+
+describe('Portal do aluno: comprovante do agendamento', () => {
+  const comprovante = (o = {}) => ({
+    codigo: 'AG-000077', agendamento_id: 77, aluno_nome: 'MARIA CLARA SOUZA', matricula: 'E00001',
+    disciplina: 'Banco de Dados', curso: 'Engenharia de Software', polo: 'Polo Resende',
+    data_prova: '2030-12-11', horario_inicio: '14:00', horario_fim: '16:00', situacao: 'ATIVO',
+    emitido_em: '2030-12-01T13:05:09.000Z', emitido_em_local: '01/12/2030 10:05:09', fuso: 'America/Sao_Paulo', ...o
+  });
+  const mockComprovante = (id, c = comprovante()) =>
+    cy.mockApi('GET', `/api/agendamentos/${id}/comprovante`, { sucesso: true, comprovante: c }, { alias: 'comprovante' });
+
+  const conferirCampos = (c) => {
+    cy.get('#modalComprovante').should('have.class', 'flex').and('be.visible');
+    cy.get('#tituloComprovante').should('have.text', 'Comprovante do agendamento');
+    cy.get('#compCodigo').should('have.text', c.codigo);
+    cy.get('#compAluno').should('have.text', c.aluno_nome);
+    cy.get('#compMatricula').should('have.text', c.matricula);
+    cy.get('#compCurso').should('have.text', c.curso);
+    cy.get('#compDisciplina').should('have.text', c.disciplina);
+    cy.get('#compPolo').should('have.text', c.polo);
+    cy.get('#compData').should('have.text', c.data_prova.split('-').reverse().join('/'));
+    cy.get('#compHorario').should('have.text', `${c.horario_inicio} às ${c.horario_fim}`);
+    cy.get('#compSituacao').should('have.text', c.situacao);
+    cy.get('#compEmitido').should('have.text', c.emitido_em_local);
+  };
+
+  const fechado = () => {
+    cy.get('#modalComprovante').should('have.class', 'hidden').and('not.be.visible');
+    cy.get('body').should('not.have.class', 'comprovante-aberto');
+  };
+
+  describe('pelo botão do cartão', () => {
+    beforeEach(() => {
+      abrir({ vagas: [vaga({ id: 2, disciplina: 'Banco de Dados' })], agendamentos: [agendamento()] });
+      mockComprovante(77);
+    });
+
+    const abrirPeloCartao = () => {
+      cy.contains('.task-item', 'Banco de Dados').find('[data-acao="comprovante"]').click();
+      cy.wait('@comprovante');
+    };
+
+    it('o cartão agendado tem o botão Comprovante, que abre o modal com todos os campos', () => {
+      cy.contains('.task-item', 'Banco de Dados').within(() => {
+        cy.contains('button', 'Comprovante');
+        cy.contains('button', 'Reagendar');
+        cy.contains('button', 'Cancelar');
+      });
+      abrirPeloCartao();
+      conferirCampos(comprovante());
+      cy.get('#comprovanteAviso').should('have.class', 'hidden'); // o aviso de sucesso só aparece depois de agendar
+      cy.get('body').should('have.class', 'comprovante-aberto');
+      cy.get('.swal2-popup').should('not.exist');
+    });
+
+    it('cartão de avaliação ainda não agendada não tem botão Comprovante', () => {
+      abrir({ vagas: [vaga()] });
+      cy.get('[data-acao="comprovante"]').should('not.exist');
+    });
+
+    it('fecha pelo botão Fechar', () => {
+      abrirPeloCartao();
+      cy.contains('#modalComprovante button', 'Fechar').click();
+      fechado();
+    });
+
+    it('fecha pelo X', () => {
+      abrirPeloCartao();
+      cy.get('#fecharComprovanteX').click();
+      fechado();
+    });
+
+    it('fecha com Esc', () => {
+      abrirPeloCartao();
+      cy.get('body').type('{esc}');
+      fechado();
+    });
+
+    it('fecha clicando fora', () => {
+      abrirPeloCartao();
+      cy.get('#modalComprovante').click('topLeft');
+      fechado();
+    });
+
+    it('clicar dentro do comprovante não fecha', () => {
+      abrirPeloCartao();
+      cy.get('#compCodigo').click();
+      cy.get('#modalComprovante').should('have.class', 'flex');
+    });
+
+    it('"Imprimir / Salvar PDF" chama window.print e há CSS de impressão só para o comprovante', () => {
+      abrirPeloCartao();
+      cy.window().then((w) => cy.stub(w, 'print').as('print'));
+      cy.contains('#modalComprovante button', 'Imprimir / Salvar PDF').click();
+      cy.get('@print').should('have.been.calledOnce');
+      // botões e aviso ficam fora da impressão
+      cy.get('#modalComprovante .nao-imprimir').should('have.length.at.least', 3);
+      cy.document().then((doc) => {
+        const regras = [...doc.styleSheets].flatMap((s) => {
+          try { return [...s.cssRules]; } catch (_) { return []; }
+        });
+        const print = regras.filter((r) => r.media && /print/.test(r.media.mediaText)).map((r) => r.cssText).join(' ');
+        expect(print).to.contain('#modalComprovante');
+        expect(print).to.contain('comprovante-aberto');
+      });
+    });
+
+    it('vaga antiga sem horário de fim mostra só o início', () => {
+      mockComprovante(77, comprovante({ horario_fim: null }));
+      abrirPeloCartao();
+      cy.get('#compHorario').should('have.text', '14:00');
+    });
+
+    it('404 do servidor mostra aviso e não abre o modal', () => {
+      cy.mockApi('GET', '/api/agendamentos/77/comprovante',
+        { sucesso: false, mensagem: 'Comprovante não encontrado.' }, { status: 404, alias: 'comprovante' });
+      abrirPeloCartao();
+      cy.swal('Comprovante indisponível', 'Comprovante não encontrado.');
+      cy.get('#modalComprovante').should('have.class', 'hidden');
+    });
+  });
+
+  it('HTML vindo do servidor no comprovante é exibido como texto e não executa', () => {
+    const malicioso = '<img src=x onerror="window.__xss=1">';
+    abrir({ vagas: [vaga({ id: 2, disciplina: 'Banco de Dados' })], agendamentos: [agendamento()] });
+    mockComprovante(77, comprovante({
+      aluno_nome: malicioso, disciplina: malicioso, curso: malicioso, polo: malicioso, codigo: malicioso, emitido_em_local: malicioso
+    }));
+    cy.get('[data-acao="comprovante"]').click();
+    cy.wait('@comprovante');
+    cy.get('#modalComprovante').should('have.class', 'flex');
+    cy.get('#modalComprovante img').should('not.exist');
+    cy.get('#compAluno').should('have.text', malicioso);
+    cy.get('#compDisciplina').should('have.text', malicioso);
+    cy.window().its('__xss').should('not.exist');
+  });
+
+  it('depois de agendar, abre o comprovante (com o aviso de sucesso) em vez de só o aviso', () => {
+    abrir({ vagas: [vaga({ id: 1 })] });
+    cy.mockApi('POST', '/api/agendar', {
+      sucesso: true, mensagem: 'Agendamento realizado com sucesso!',
+      agendamento: { id: 101, vaga_id: 1, data_agendada: '2030-12-10', horario_agendado: '08:00:00' }
+    }, { alias: 'agendar' });
+    const c = comprovante({
+      codigo: 'AG-000101', agendamento_id: 101, disciplina: 'Machine Learning',
+      data_prova: '2030-12-10', horario_inicio: '08:00', horario_fim: '10:00'
+    });
+    mockComprovante(101, c);
+
+    cy.get('[data-acao="agendar"]').click();
+    cy.get('#horarioSelect').select('1');
+    cy.contains('#modalAgendamento button', 'Confirmar Horário').click();
+
+    cy.wait('@agendar').its('request.body').should('deep.equal', { vaga_id: 1 });
+    cy.wait('@comprovante').its('request.url').should('contain', '/api/agendamentos/101/comprovante');
+    cy.get('#modalAgendamento').should('have.class', 'hidden');
+    conferirCampos(c);
+    cy.get('#comprovanteAviso').should('not.have.class', 'hidden').and('have.text', 'Agendamento realizado com sucesso!');
+    cy.get('.swal2-popup').should('not.exist');
+    cy.wait('@vagas'); // recarregou a lista
+  });
+
+  it('se o comprovante falhar depois de agendar, mostra o aviso de sucesso de antes', () => {
+    abrir({ vagas: [vaga({ id: 1 })] });
+    cy.mockApi('POST', '/api/agendar', {
+      sucesso: true, mensagem: 'Agendamento realizado com sucesso!', agendamento: { id: 101, vaga_id: 1 }
+    }, { alias: 'agendar' });
+    cy.mockApi('GET', '/api/agendamentos/101/comprovante',
+      { sucesso: false, mensagem: 'Erro interno no servidor.' }, { status: 500, alias: 'comprovante' });
+
+    cy.get('[data-acao="agendar"]').click();
+    cy.get('#horarioSelect').select('1');
+    cy.contains('#modalAgendamento button', 'Confirmar Horário').click();
+    cy.wait('@comprovante');
+    cy.swal('Sucesso!', 'Agendamento realizado com sucesso!');
+    cy.get('#modalComprovante').should('have.class', 'hidden');
+  });
+
+  it('depois de reagendar, abre o comprovante do NOVO agendamento', () => {
+    abrir({
+      vagas: [
+        vaga({ id: 2, disciplina: 'Banco de Dados', data_prova: '2030-12-11', horario: '14:00:00', horario_fim: '16:00:00' }),
+        vaga({ id: 3, disciplina: 'Banco de Dados', data_prova: '2030-12-14', horario: '09:00:00', horario_fim: '11:00:00', polo: 'Polo Barra Mansa' })
+      ],
+      agendamentos: [agendamento()]
+    });
+    cy.mockApi('POST', '/api/reagendar', {
+      sucesso: true, mensagem: 'Reagendamento realizado com sucesso!',
+      agendamento: { id: 205, vaga_id: 3, data_agendada: '2030-12-14', horario_agendado: '09:00:00' }
+    }, { alias: 'reagendar' });
+    const c = comprovante({
+      codigo: 'AG-000205', agendamento_id: 205, polo: 'Polo Barra Mansa',
+      data_prova: '2030-12-14', horario_inicio: '09:00', horario_fim: '11:00'
+    });
+    mockComprovante(205, c);
+
+    cy.get('[data-acao="reagendar"]').click();
+    cy.get('#horarioSelect').select('3');
+    cy.contains('#modalAgendamento button', 'Confirmar Horário').click();
+
+    cy.wait('@reagendar').its('request.body').should('deep.equal', { agendamento_id: 77, nova_vaga_id: 3 });
+    cy.wait('@comprovante');
+    conferirCampos(c);
+    cy.get('#comprovanteAviso').should('have.text', 'Reagendamento realizado com sucesso!');
+    cy.get('.swal2-popup').should('not.exist');
+  });
+
+  it('no celular o comprovante cabe na tela e os botões continuam acessíveis', () => {
+    cy.viewport('iphone-6');
+    abrir({ vagas: [vaga({ id: 2, disciplina: 'Banco de Dados' })], agendamentos: [agendamento()] });
+    mockComprovante(77);
+    cy.get('[data-acao="comprovante"]').click();
+    cy.wait('@comprovante');
+    cy.get('#modalComprovante .comprovante-caixa').then(($c) => {
+      expect($c[0].getBoundingClientRect().width).to.be.at.most(375);
+    });
+    cy.contains('#modalComprovante button', 'Imprimir / Salvar PDF').scrollIntoView().should('be.visible');
+    cy.contains('#modalComprovante button', 'Fechar').scrollIntoView().click();
+    fechado();
+  });
+});

@@ -84,6 +84,7 @@ const ROTAS = [
   ['POST', '/api/agendar', ['aluno']],
   ['POST', '/api/cancelar-agendamento', ['aluno']],
   ['POST', '/api/reagendar', ['aluno']],
+  ['GET', '/api/agendamentos/1/comprovante', ['aluno']],
   ['GET', '/api/notas', ['coord']],
   ['POST', '/api/atualizar-nota', ['coord']],
   ['POST', '/api/cadastrar-vaga', ['coord']],

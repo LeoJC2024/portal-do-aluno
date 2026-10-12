@@ -1219,6 +1219,60 @@ app.get('/api/meus-agendamentos', autenticar, exigirPerfil(PERFIL.ALUNO), rota(a
   res.json(rows);
 }));
 
+// código mostrado ao aluno, derivado do id (AG-000123); não é gravado no banco
+const codigoAgendamento = (id) => `AG-${String(id).padStart(6, '0')}`;
+
+// comprovante do próprio agendamento ativo. Tudo vem do banco e a hora de emissão é a do servidor.
+// Agendamento de outro aluno, inexistente ou inativo recebem a mesma resposta (não revela quais ids existem)
+app.get('/api/agendamentos/:id/comprovante', autenticar, exigirPerfil(PERFIL.ALUNO), rota(async (req, res) => {
+  const agendamentoId = inteiroEstrito(req.params.id);
+  if (agendamentoId === null) {
+    return res.status(400).json({ sucesso: false, mensagem: 'Agendamento inválido.' });
+  }
+
+  const { rows } = await pool.query(
+    `SELECT a.id, a.status, a.data_agendada, a.horario_agendado, v.horario_fim, v.disciplina, v.polo,
+            COALESCE(NULLIF(TRIM(v.curso), ''), u.curso) AS curso, u.nome, u.matricula
+       FROM agendamentos a
+       JOIN vagas v ON v.id = a.vaga_id
+       JOIN usuarios u ON u.id = a.usuario_id
+      WHERE a.id = $1 AND a.usuario_id = $2 AND a.status = 'ATIVO'`,
+    [agendamentoId, req.usuario.id]
+  );
+  const ag = rows[0];
+  if (!ag) return res.status(404).json({ sucesso: false, mensagem: 'Comprovante não encontrado.' });
+
+  const codigo = codigoAgendamento(ag.id);
+  const agora = new Date();
+  const [diaSP, horaSP] = agora.toLocaleString('sv-SE', { timeZone: FUSO }).split(' ');
+
+  await registrarAuditoria(
+    pool, 'COMPROVANTE_EMITIDO',
+    `Aluno ${ag.nome} (${ag.matricula}) emitiu o comprovante ${codigo} do agendamento ${ag.id} (${ag.disciplina})`,
+    req.usuario.nome, req.ip
+  );
+
+  res.json({
+    sucesso: true,
+    comprovante: {
+      codigo,
+      agendamento_id: ag.id,
+      aluno_nome: ag.nome,
+      matricula: ag.matricula,
+      disciplina: ag.disciplina,
+      curso: ag.curso || null,
+      polo: ag.polo || null,
+      data_prova: ag.data_agendada,
+      horario_inicio: String(ag.horario_agendado).slice(0, 5),
+      horario_fim: ag.horario_fim ? String(ag.horario_fim).slice(0, 5) : null,
+      situacao: ag.status,
+      emitido_em: agora.toISOString(),
+      emitido_em_local: `${diaSP.split('-').reverse().join('/')} ${horaSP}`,
+      fuso: FUSO
+    }
+  });
+}));
+
 app.post('/api/cancelar-agendamento', autenticar, exigirPerfil(PERFIL.ALUNO), rota(async (req, res) => {
   const agendamentoId = inteiroEstrito(req.body.agendamento_id);
   if (agendamentoId === null) {

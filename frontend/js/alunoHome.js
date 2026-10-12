@@ -2,6 +2,7 @@ let vagasPorDisciplina = new Map();
 let agendamentosPorDisciplina = new Map();
 let disciplinaAtual = null;
 let enviandoAgendamento = false;
+let carregandoComprovante = false;
 let modoReagendar = null; // { agendamentoId, vagaAtualId } quando o modal está trocando um horário
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -25,6 +26,7 @@ window.addEventListener('DOMContentLoaded', () => {
     if (!botao) return;
     if (botao.dataset.acao === 'agendar') abrirModalAgendamento(botao.dataset.disciplina);
     if (botao.dataset.acao === 'cancelar') solicitarCancelamento(Number(botao.dataset.id));
+    if (botao.dataset.acao === 'comprovante') abrirComprovante(Number(botao.dataset.id));
     if (botao.dataset.acao === 'reagendar') {
       abrirModalAgendamento(botao.dataset.disciplina, { agendamentoId: Number(botao.dataset.id), vagaAtualId: Number(botao.dataset.vaga) });
     }
@@ -35,6 +37,12 @@ window.addEventListener('DOMContentLoaded', () => {
   });
   document.getElementById('modalResultados').addEventListener('click', (e) => {
     if (e.target === e.currentTarget) fecharModalResultados();
+  });
+  document.getElementById('modalComprovante').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) fecharComprovante();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && document.getElementById('modalComprovante').classList.contains('flex')) fecharComprovante();
   });
 
   carregarPerfil(nome);
@@ -129,7 +137,10 @@ function renderizarCard(disciplina) {
           </div>
         </div>
         <div class="w-full md:w-auto border-t md:border-t-0 pt-3 md:pt-0 border-slate-200 shrink-0">
-          <div class="flex gap-2">
+          <div class="flex flex-wrap gap-2">
+          <button data-acao="comprovante" data-id="${Number(ag.id)}" class="bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-medium px-3 py-2 rounded-lg text-xs transition flex items-center justify-center gap-1.5 cursor-pointer">
+            <i class="fa-solid fa-receipt"></i> Comprovante
+          </button>
           <button data-acao="reagendar" data-id="${Number(ag.id)}" data-vaga="${Number(ag.vaga_id)}" data-disciplina="${escapeHtml(disciplina)}" class="bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 font-medium px-3 py-2 rounded-lg text-xs transition flex items-center justify-center gap-1.5 cursor-pointer">
             <i class="fa-solid fa-rotate"></i> Reagendar
           </button>
@@ -238,7 +249,13 @@ async function confirmarAgendamento() {
 
     if (ok && dados?.sucesso) {
       fecharModal();
-      Swal.fire({ title: reagendando ? 'Reagendado!' : 'Sucesso!', text: dados.mensagem, icon: 'success', confirmButtonColor: '#065f46' });
+      const novoId = Number(dados.agendamento?.id);
+      const abriu = Number.isInteger(novoId) && novoId > 0 &&
+        await abrirComprovante(novoId, { aviso: dados.mensagem, avisarErro: false });
+      // sem comprovante (resposta sem id ou falha ao buscá-lo): mantém o aviso de sucesso de antes
+      if (!abriu) {
+        Swal.fire({ title: reagendando ? 'Reagendado!' : 'Sucesso!', text: dados.mensagem, icon: 'success', confirmButtonColor: '#065f46' });
+      }
     } else {
       const mensagem = dados?.mensagem || (reagendando ? 'Não foi possível reagendar.' : 'Não foi possível agendar esta vaga.');
       const bloqueado = /Bloqueada/.test(mensagem);
@@ -296,6 +313,72 @@ async function solicitarCancelamento(agendamentoId) {
     console.error('Erro ao cancelar:', erro);
     Swal.fire({ title: 'Erro de Conexão', text: 'Erro ao comunicar com o servidor.', icon: 'error', confirmButtonColor: '#ef4444' });
   }
+}
+
+// ---------- comprovante do agendamento ----------
+// busca no servidor (dados do banco e hora de emissão do servidor) e mostra no modal.
+// Todo texto entra por textContent. Devolve true se o modal abriu.
+async function abrirComprovante(agendamentoId, { aviso = '', avisarErro = true } = {}) {
+  if (carregandoComprovante) return false;
+  carregandoComprovante = true;
+  try {
+    const { ok, dados } = await apiFetch(`/api/agendamentos/${encodeURIComponent(agendamentoId)}/comprovante`);
+    const c = dados?.comprovante;
+    if (!ok || !dados?.sucesso || !c || typeof c !== 'object') {
+      if (avisarErro) {
+        Swal.fire({
+          title: 'Comprovante indisponível',
+          text: dados?.mensagem || 'Não foi possível carregar o comprovante.',
+          icon: 'error',
+          confirmButtonColor: '#ef4444'
+        });
+      }
+      return false;
+    }
+
+    setTexto('compCodigo', c.codigo || '');
+    setTexto('compAluno', c.aluno_nome || '');
+    setTexto('compMatricula', c.matricula || '');
+    setTexto('compCurso', c.curso || '—');
+    setTexto('compDisciplina', c.disciplina || '');
+    setTexto('compPolo', c.polo || '—');
+    setTexto('compData', formatarDataBr(c.data_prova));
+    setTexto('compHorario', c.horario_fim
+      ? `${formatarHora(c.horario_inicio)} às ${formatarHora(c.horario_fim)}`
+      : formatarHora(c.horario_inicio));
+    setTexto('compSituacao', c.situacao || '');
+    setTexto('compEmitido', c.emitido_em_local || '');
+
+    const avisoEl = document.getElementById('comprovanteAviso');
+    avisoEl.textContent = aviso || '';
+    avisoEl.classList.toggle('hidden', !aviso);
+
+    const modal = document.getElementById('modalComprovante');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    document.body.classList.add('comprovante-aberto');
+    return true;
+  } catch (erro) {
+    console.error('Erro ao carregar o comprovante:', erro);
+    if (avisarErro) {
+      Swal.fire({ title: 'Erro de Conexão', text: 'Erro ao carregar o comprovante.', icon: 'error', confirmButtonColor: '#ef4444' });
+    }
+    return false;
+  } finally {
+    carregandoComprovante = false;
+  }
+}
+
+function fecharComprovante() {
+  const modal = document.getElementById('modalComprovante');
+  modal.classList.remove('flex');
+  modal.classList.add('hidden');
+  document.body.classList.remove('comprovante-aberto');
+}
+
+// o CSS @media print do alunoHome.html deixa só o comprovante na impressão / no PDF
+function imprimirComprovante() {
+  window.print();
 }
 
 // ==========================================
