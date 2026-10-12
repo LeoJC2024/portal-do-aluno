@@ -29,7 +29,16 @@ describe('Auditoria (perfil AUDIT)', () => {
   it('mostra o usuário logado no cabeçalho', () => {
     abrir(resposta([]));
     cy.get('#userName').should('have.text', 'Auditor Geral');
-    cy.get('#userAvatar').should('have.text', 'AU');
+    // padrão M03: a bolinha mostra só a inicial, como nas outras telas (antes eram 2 letras: "AU")
+    cy.get('#userAvatar').should('have.text', 'A');
+  });
+
+  it('tem o cartão de título com nome e matrícula, no mesmo padrão das outras telas', () => {
+    abrir(resposta([]));
+    cy.get('main > div').first().should('have.class', 'cartao-titulo');
+    cy.get('#tituloAvatar').should('have.text', 'A');
+    cy.get('#tituloNome').should('have.text', 'Auditor Geral');
+    cy.get('#tituloMatricula').should('have.text', 'Matrícula TESTE_AUDIT').and('have.class', 'font-mono');
   });
 
   it('preenche os três contadores e marca o banco como OK', () => {
@@ -114,7 +123,7 @@ describe('Auditoria (perfil AUDIT): filtros no servidor', () => {
     cy.get('#filtroDataInicio').should('have.attr', 'type', 'date');
     cy.get('#filtroDataFim').should('have.attr', 'type', 'date');
     cy.get('#filtroIp').should('exist');
-    ['LOGIN_FALHA', 'CANCELAMENTO_BLOQUEADO', 'REAGENDAMENTO_BLOQUEADO', 'SOFT_DELETE', 'LANÇAMENTO_NOTA'].forEach((acao) => {
+    ['LOGIN_FALHA', 'CANCELAMENTO_BLOQUEADO', 'REAGENDAMENTO_BLOQUEADO', 'SOFT_DELETE', 'LANÇAMENTO_NOTA', 'COMPROVANTE_EMITIDO'].forEach((acao) => {
       cy.get(`#filtroAcao option[value="${acao}"]`).should('exist');
     });
   });

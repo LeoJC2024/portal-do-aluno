@@ -2,8 +2,13 @@ document.addEventListener('DOMContentLoaded', () => {
   if (!exigirPerfil(['audit'])) return;
 
   const nome = localStorage.getItem('usuario_nome') || 'Auditoria';
+  const matricula = localStorage.getItem('usuario_matricula') || '';
+  const inicial = (nome.trim().split(' ')[0] || 'A').charAt(0).toUpperCase();
   setTexto('userName', nome);
-  setTexto('userAvatar', nome.trim().slice(0, 2).toUpperCase() || 'AU');
+  setTexto('userAvatar', inicial);
+  setTexto('tituloAvatar', inicial);
+  setTexto('tituloNome', nome);
+  setTexto('tituloMatricula', `Matrícula ${matricula}`);
 
   carregarDadosAuditoria();
 

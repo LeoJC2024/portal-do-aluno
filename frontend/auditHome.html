@@ -7,6 +7,7 @@
     <title>Trilha de Auditoria e Infraestrutura - UNIFAA</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="css/common.css">
     <link rel="stylesheet" href="css/auditHome.css">
     <!-- SweetAlert2 CSS e JS -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -15,20 +16,20 @@
 <body data-sistema="System Audit &amp; Database Logs" class="bg-slate-900 font-sans text-slate-100 antialiased min-h-screen flex flex-col">
 
     <!-- Header Técnico / Infraestrutura -->
-    <header class="bg-slate-800 border-b border-slate-700 shadow-md sticky top-0 z-50">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-            <div class="flex items-center space-x-3">
-                <div class="bg-slate-700 p-2 rounded-lg text-emerald-400 font-mono font-bold">
+    <header class="barra-topo bg-slate-800 border-b border-slate-700 shadow-md sticky top-0 z-50">
+        <div class="conteudo-largura h-full flex items-center justify-between gap-4">
+            <div class="flex items-center space-x-3 min-w-0">
+                <div class="bg-slate-700 p-2 rounded-lg text-emerald-400 font-mono font-bold shrink-0">
                     &gt;_
                 </div>
-                <div>
-                    <span class="text-xl font-bold tracking-tight text-white">System Audit &amp; Database Logs</span>
-                    <span class="text-xs bg-emerald-900 text-emerald-300 px-2 py-0.5 rounded ml-2 font-mono">PostgreSQL
+                <div class="min-w-0 flex items-center">
+                    <span class="text-base sm:text-xl font-bold tracking-tight text-white truncate">System Audit &amp; Database Logs</span>
+                    <span class="hidden lg:inline text-xs bg-emerald-900 text-emerald-300 px-2 py-0.5 rounded ml-2 font-mono whitespace-nowrap">PostgreSQL
                         Direct Engine</span>
                 </div>
             </div>
 
-            <div class="flex items-center gap-4">
+            <div class="flex items-center gap-4 shrink-0">
                 <div class="hidden sm:flex items-center space-x-2 text-xs font-mono text-slate-400">
                     <span id="dbStatusDot" class="w-3 h-3 rounded-full bg-slate-500 inline-block animate-pulse"></span>
                     <span id="dbStatusTexto">DB Status: verificando...</span>
@@ -39,24 +40,23 @@
                     <div class="flex items-center space-x-3 cursor-pointer p-1.5 rounded-lg hover:bg-slate-700/50 transition"
                         onclick="toggleMenu(event)">
                         <div class="text-right hidden sm:block">
-                            <p class="text-xs font-mono font-semibold text-slate-200 uppercase" id="userName">Admin
-                                Infra</p>
-                            <p class="text-[10px] text-slate-400 font-mono flex items-center gap-1 justify-end">
-                                Root / DB Master <i class="fa-solid fa-chevron-down text-[8px]"></i>
+                            <p class="usuario-nome text-slate-200" id="userName">Auditoria</p>
+                            <p class="usuario-perfil text-slate-400">
+                                Auditor <i class="fa-solid fa-chevron-down text-[9px]"></i>
                             </p>
                         </div>
-                        <div class="w-9 h-9 rounded-full bg-slate-700 flex items-center justify-center font-mono font-bold text-emerald-400 border border-slate-600 shadow-sm"
+                        <div class="usuario-avatar bg-slate-700 text-emerald-400 border-slate-500 shadow-sm"
                             id="userAvatar">
-                            DB
+                            A
                         </div>
                     </div>
 
                     <div id="userDropdown"
                         class="absolute right-0 top-full mt-2 w-48 bg-slate-800 rounded-xl shadow-xl border border-slate-700 hidden overflow-hidden z-50 text-slate-200">
                         <div onclick="sairDaConta()"
-                            class="px-4 py-3 text-xs font-mono font-semibold text-rose-400 hover:bg-rose-950/50 flex items-center justify-between cursor-pointer transition">
+                            class="px-4 py-3 text-xs font-semibold text-rose-400 hover:bg-rose-950/50 flex items-center justify-between cursor-pointer transition">
                             <span>Sair da Conta</span>
-                            <span class="text-sm">⎋</span>
+                            <i class="fa-solid fa-right-from-bracket"></i>
                         </div>
                     </div>
                 </div>
@@ -64,10 +64,26 @@
         </div>
     </header>
 
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full">
+    <main class="conteudo-largura conteudo-principal">
+
+        <!-- Cartão de título (mesmo padrão das outras telas, nas cores escuras desta) -->
+        <div class="cartao-titulo cartao-titulo-escuro flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+                <h1 class="text-xl sm:text-2xl font-bold text-white">Trilha de Auditoria e Infraestrutura</h1>
+                <p class="text-slate-400 text-sm mt-1">Consulta somente leitura dos registros imutáveis de auditoria do sistema.</p>
+                <div class="mt-3 flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-full bg-slate-700 text-emerald-400 flex items-center justify-center font-bold border-2 border-slate-500"
+                        id="tituloAvatar">A</div>
+                    <div>
+                        <p class="text-sm font-semibold text-white" id="tituloNome"></p>
+                        <p class="text-xs text-slate-400 font-mono" id="tituloMatricula"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
 
         <!-- Estatísticas Rápida de Auditoria (Com IDs adicionados) -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div class="bg-slate-800 border border-slate-700 p-5 rounded-xl">
                 <p class="text-slate-400 text-xs font-mono uppercase">Total Transações Logadas</p>
                 <p class="text-3xl font-bold text-white mt-1" id="statTotalTransacoes">--</p>
@@ -130,6 +146,7 @@
                         <option value="CADASTRO_USUARIO">CADASTRO_USUARIO</option>
                         <option value="CANCELAMENTO_BLOQUEADO">CANCELAMENTO_BLOQUEADO</option>
                         <option value="CANCELAMENTO_REALIZADO">CANCELAMENTO_REALIZADO</option>
+                        <option value="COMPROVANTE_EMITIDO">COMPROVANTE_EMITIDO</option>
                         <option value="CONFIRMACAO_ENTRADA">CONFIRMACAO_ENTRADA</option>
                         <option value="INATIVACAO_DISCIPLINA">INATIVACAO_DISCIPLINA</option>
                         <option value="LANÇAMENTO_NOTA">LANÇAMENTO_NOTA</option>

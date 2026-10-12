@@ -1,0 +1,139 @@
+/* Padrão visual comum a todas as telas (melhoria M03 / decisão D07):
+   barra superior de 80 px, mesma largura e espaçamento do conteúdo,
+   mesmo cartão de título e dois tamanhos de modal. */
+
+/* ---------- barra superior ---------- */
+.barra-topo {
+  height: 80px; /* altura total, já contando a borda inferior */
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+/* ---------- largura e espaçamento do conteúdo ---------- */
+.conteudo-largura {
+  width: 100%;
+  max-width: 80rem; /* 1280 px */
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+@media (min-width: 640px) {
+  .conteudo-largura { padding-left: 1.5rem; padding-right: 1.5rem; }
+}
+
+@media (min-width: 1024px) {
+  .conteudo-largura { padding-left: 2rem; padding-right: 2rem; }
+}
+
+.conteudo-principal {
+  flex: 1 0 auto;
+  padding-top: 2rem;
+  padding-bottom: 2rem;
+}
+
+/* mesmo espaço vertical entre os cartões */
+.conteudo-principal > * + * {
+  margin-top: 1.5rem;
+}
+
+/* ---------- cartão de título ---------- */
+.cartao-titulo {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-top: 4px solid #059669; /* verde da Coordenação e da Recepção */
+  border-radius: 1rem;
+  padding: 1.5rem;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+@media (min-width: 640px) {
+  .cartao-titulo { padding: 2rem; }
+}
+
+/* variante para telas de fundo escuro (Auditor): muda só as cores, não o formato */
+.cartao-titulo-escuro {
+  background: #1e293b;
+  border-color: #334155;
+  border-top-color: #059669;
+}
+
+/* ---------- bloco do usuário na barra ---------- */
+.usuario-nome {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.usuario-perfil {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.25rem;
+}
+
+.usuario-avatar {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 9999px;
+  border-width: 2px;
+  border-style: solid;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+/* ---------- modais: dois tamanhos ---------- */
+/* pequeno: confirmações e avisos | médio: formulários e detalhes */
+.modal-pequeno,
+.modal-medio {
+  width: 100%;
+  max-height: calc(100vh - 2rem);
+  max-height: calc(100dvh - 2rem); /* o fundo do modal tem 1rem de respiro em cada lado */
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-pequeno { max-width: 28rem; } /* 448 px */
+.modal-medio { max-width: 40rem; }   /* 640 px */
+
+/* parte do modal que rola quando o conteúdo passa da altura da tela */
+.modal-corpo {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* os avisos e confirmações do SweetAlert usam o tamanho pequeno */
+.swal2-popup {
+  width: 28rem;
+  max-width: 100%;
+}
+
+/* ---------- áreas de toque: no mínimo 40 px ---------- */
+button,
+select,
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+input[type="date"],
+input[type="search"] {
+  min-height: 40px;
+}
+
+/* botões só com ícone (ex.: o X dos modais) */
+.botao-icone {
+  min-width: 40px;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}

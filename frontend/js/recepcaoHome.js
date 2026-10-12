@@ -234,8 +234,8 @@ function abrirModalAluno(indice) {
   }
 
   document.getElementById('conteudoModalAluno').innerHTML = `
-    <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 border-l-4 border-l-emerald-600 p-6 relative">
-      <button type="button" data-fechar-modal class="absolute top-3 right-4 text-slate-400 hover:text-slate-700 cursor-pointer" title="Fechar">
+    <div class="modal-corpo bg-white rounded-2xl shadow-2xl border border-slate-200 border-l-4 border-l-emerald-600 p-6 relative">
+      <button type="button" data-fechar-modal class="botao-icone absolute top-1 right-2 text-slate-400 hover:text-slate-700 cursor-pointer" title="Fechar" aria-label="Fechar">
         <i class="fa-solid fa-xmark text-lg"></i>
       </button>
 

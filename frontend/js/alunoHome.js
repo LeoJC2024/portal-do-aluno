@@ -440,7 +440,7 @@ async function abrirResultados() {
   }).join('');
 
   lista.innerHTML = `
-    <div class="w-full">
+    <div class="w-full overflow-x-auto">
       <table class="w-full text-left text-xs">
         <thead>
           <tr class="border-b border-slate-200 text-slate-500 uppercase">

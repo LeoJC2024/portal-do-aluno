@@ -110,6 +110,20 @@ describe('Coordenação: trilha de auditoria', () => {
     cy.get('#filtroAcao option[value="ATUALIZACAO_FOTO"]').should('exist');
   });
 
+  it('o filtro de ação lista todas as ações que o servidor grava na auditoria', () => {
+    [
+      'ADICAO_VAGAS', 'AGENDAMENTO_REALIZADO', 'ATUALIZACAO_FOTO', 'ATUALIZACAO_POLO', 'CADASTRO_DISCIPLINA',
+      'CADASTRO_USUARIO', 'CANCELAMENTO_BLOQUEADO', 'CANCELAMENTO_REALIZADO', 'COMPROVANTE_EMITIDO',
+      'CONFIRMACAO_ENTRADA', 'INATIVACAO_DISCIPLINA', 'LANÇAMENTO_NOTA', 'LOGIN_FALHA', 'REAGENDAMENTO_BLOQUEADO',
+      'REAGENDAMENTO_REALIZADO', 'REATIVACAO_DISCIPLINA', 'REATIVACAO_USUARIO', 'REDEFINICAO_SENHA', 'SOFT_DELETE',
+      'SOLICITACAO_CODIGO_SENHA'
+    ].forEach((acao) => cy.get(`#filtroAcao option[value="${acao}"]`).should('exist'));
+  });
+
+  it('o campo de busca se chama "Buscar"', () => {
+    cy.get('label[for="filtroUsuario"]').should('have.text', 'Buscar');
+  });
+
   // a partir daqui o filtro é feito no servidor: o teste confere o que a tela pediu e simula a resposta filtrada
   const simularFiltro = (logsFiltrados, extra = {}) =>
     cy.mockApi('GET', '/api/auditoria', respostaAuditoria(logsFiltrados, extra), { alias: 'filtro' });

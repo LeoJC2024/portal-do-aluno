@@ -8,6 +8,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="css/common.css">
     <!-- SweetAlert2 CSS e JS -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     </head>
@@ -15,8 +16,8 @@
 <body data-sistema="Gestão Acadêmica" class="bg-slate-100 text-slate-800 antialiased min-h-screen flex flex-col">
 
     <!-- HEADER / NAVBAR SUPERIOR PADRONIZADO -->
-    <header class="bg-emerald-900 text-white shadow-md border-b-4 border-emerald-600 sticky top-0 z-50">
-        <div class="max-w-7xl mx-auto px-2 sm:px-4 lg:px-6 h-20 flex items-center justify-between gap-2">
+    <header class="barra-topo bg-emerald-900 text-white shadow-md border-b-4 border-emerald-600 sticky top-0 z-50">
+        <div class="conteudo-largura h-full flex items-center justify-between gap-4">
 
             <div class="flex items-center space-x-2 shrink-0">
                 <div
@@ -37,39 +38,16 @@
                 </div>
             </div>
 
-            <nav class="flex space-x-1 sm:space-x-2 text-xs sm:text-sm font-medium items-center">
-                <button onclick="switchTab('oferta', this)" id="btn-oferta"
-                    class="tab-btn px-2 sm:px-3 py-2 rounded-lg transition font-bold bg-emerald-800 text-white border border-emerald-700 shadow-sm cursor-pointer whitespace-nowrap flex items-center gap-1 sm:gap-2">
-                    <i class="fa-solid fa-circle-plus"></i> <span class="hidden md:inline">1. </span>Adição de Vagas
-                </button>
-                <button onclick="switchTab('usuarios', this)" id="btn-usuarios"
-                    class="tab-btn px-2 sm:px-3 py-2 rounded-lg transition text-emerald-200 hover:text-white hover:bg-emerald-800/50 cursor-pointer whitespace-nowrap flex items-center gap-1 sm:gap-2">
-                    <i class="fa-solid fa-user-plus"></i> <span class="hidden md:inline">2. </span>Cadastro de Usuários
-                </button>
-                <button onclick="switchTab('disciplinas', this)" id="btn-disciplinas"
-                    class="tab-btn px-2 sm:px-3 py-2 rounded-lg transition text-emerald-200 hover:text-white hover:bg-emerald-800/50 cursor-pointer whitespace-nowrap flex items-center gap-1 sm:gap-2">
-                    <i class="fa-solid fa-book"></i> <span class="hidden md:inline">3. </span>Disciplinas
-                </button>
-                <button onclick="switchTab('sincronizacao', this)" id="btn-sincronizacao"
-                    class="tab-btn px-2 sm:px-3 py-2 rounded-lg transition text-emerald-200 hover:text-white hover:bg-emerald-800/50 cursor-pointer whitespace-nowrap flex items-center gap-1 sm:gap-2">
-                    <i class="fa-solid fa-rotate"></i> <span class="hidden md:inline">4. </span>Sincronização de Notas
-                </button>
-                <button onclick="switchTab('auditoria', this)" id="btn-auditoria"
-                    class="tab-btn px-2 sm:px-3 py-2 rounded-lg transition text-emerald-200 hover:text-white hover:bg-emerald-800/50 cursor-pointer whitespace-nowrap flex items-center gap-1 sm:gap-2">
-                    <i class="fa-solid fa-shield-halved"></i> <span class="hidden md:inline">5. </span>Trilha de Auditoria
-                </button>
-            </nav>
-
             <div class="relative shrink-0">
                 <div class="flex items-center space-x-3 cursor-pointer p-1.5 rounded-lg hover:bg-emerald-800/50 transition"
                     onclick="toggleMenu(event)">
                     <div class="text-right hidden sm:block">
-                        <p class="text-sm font-semibold text-emerald-100 uppercase" id="userName">Prof. Coordenador</p>
-                        <p class="text-xs text-emerald-300 flex items-center gap-1 justify-end" id="userCourse">
+                        <p class="usuario-nome text-emerald-100" id="userName">Prof. Coordenador</p>
+                        <p class="usuario-perfil text-emerald-300" id="userCourse">
                             Coordenador <i class="fa-solid fa-chevron-down text-[9px]"></i>
                         </p>
                     </div>
-                    <div class="w-10 h-10 rounded-full bg-emerald-700 flex items-center justify-center font-bold text-white border-2 border-emerald-500 shadow-sm"
+                    <div class="usuario-avatar bg-emerald-700 text-white border-emerald-500 shadow-sm"
                         id="userAvatar">
                         C
                     </div>
@@ -91,10 +69,36 @@
         </div>
     </header>
 
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full space-y-6">
+    <!-- ABAS DA COORDENAÇÃO: faixa própria logo abaixo da barra de 80 px (rola na horizontal se não couber) -->
+    <nav class="bg-emerald-900 border-b border-emerald-700 shadow-sm sticky top-20 z-40" aria-label="Abas da coordenação">
+        <div class="conteudo-largura flex items-center gap-1 sm:gap-2 overflow-x-auto py-2 text-xs sm:text-sm font-medium">
+            <button onclick="switchTab('oferta', this)" id="btn-oferta"
+                class="tab-btn px-2 sm:px-3 py-2 rounded-lg transition font-bold bg-emerald-800 text-white border border-emerald-700 shadow-sm cursor-pointer whitespace-nowrap flex items-center gap-1 sm:gap-2">
+                <i class="fa-solid fa-circle-plus"></i> <span class="hidden md:inline">1. </span>Adição de Vagas
+            </button>
+            <button onclick="switchTab('usuarios', this)" id="btn-usuarios"
+                class="tab-btn px-2 sm:px-3 py-2 rounded-lg transition text-emerald-200 hover:text-white hover:bg-emerald-800/50 cursor-pointer whitespace-nowrap flex items-center gap-1 sm:gap-2">
+                <i class="fa-solid fa-user-plus"></i> <span class="hidden md:inline">2. </span>Cadastro de Usuários
+            </button>
+            <button onclick="switchTab('disciplinas', this)" id="btn-disciplinas"
+                class="tab-btn px-2 sm:px-3 py-2 rounded-lg transition text-emerald-200 hover:text-white hover:bg-emerald-800/50 cursor-pointer whitespace-nowrap flex items-center gap-1 sm:gap-2">
+                <i class="fa-solid fa-book"></i> <span class="hidden md:inline">3. </span>Disciplinas
+            </button>
+            <button onclick="switchTab('sincronizacao', this)" id="btn-sincronizacao"
+                class="tab-btn px-2 sm:px-3 py-2 rounded-lg transition text-emerald-200 hover:text-white hover:bg-emerald-800/50 cursor-pointer whitespace-nowrap flex items-center gap-1 sm:gap-2">
+                <i class="fa-solid fa-rotate"></i> <span class="hidden md:inline">4. </span>Sincronização de Notas
+            </button>
+            <button onclick="switchTab('auditoria', this)" id="btn-auditoria"
+                class="tab-btn px-2 sm:px-3 py-2 rounded-lg transition text-emerald-200 hover:text-white hover:bg-emerald-800/50 cursor-pointer whitespace-nowrap flex items-center gap-1 sm:gap-2">
+                <i class="fa-solid fa-shield-halved"></i> <span class="hidden md:inline">5. </span>Trilha de Auditoria
+            </button>
+        </div>
+    </nav>
+
+    <main class="conteudo-largura conteudo-principal">
 
         <div
-            class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-t-4 border-t-emerald-600">
+            class="cartao-titulo flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
                 <h1 class="text-xl sm:text-2xl font-bold text-slate-900">Painel da Coordenação Acadêmica</h1>
                 <p class="text-slate-600 text-sm mt-1">Gerencie a adição de vagas, novos cadastros institucionais, notas
@@ -273,7 +277,7 @@
                 <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-6 space-y-4 text-xs">
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
-                            <label class="block font-semibold text-slate-600 mb-1.5">Filtrar por Usuário</label>
+                            <label for="filtroUsuario" class="block font-semibold text-slate-600 mb-1.5">Buscar</label>
                             <input type="text" id="filtroUsuario" placeholder="Nome ou ID..."
                                 class="w-full bg-white border border-slate-300 rounded-lg p-2.5 outline-none focus:ring-1 focus:ring-emerald-500">
                         </div>
@@ -282,17 +286,26 @@
                             <select id="filtroAcao"
                                 class="w-full bg-white border border-slate-300 rounded-lg p-2.5 outline-none focus:ring-1 focus:ring-emerald-500">
                                 <option value="">Todas as Ações</option>
-                                <option value="CADASTRO_USUARIO">CADASTRO_USUARIO</option>
-                                <option value="LANÇAMENTO_NOTA">LANÇAMENTO_NOTA</option>
-                                <option value="SOFT_DELETE">SOFT_DELETE</option>
                                 <option value="ADICAO_VAGAS">ADICAO_VAGAS</option>
-                                <option value="REATIVACAO_USUARIO">REATIVACAO_USUARIO</option>
+                                <option value="AGENDAMENTO_REALIZADO">AGENDAMENTO_REALIZADO</option>
                                 <option value="ATUALIZACAO_FOTO">ATUALIZACAO_FOTO</option>
                                 <option value="ATUALIZACAO_POLO">ATUALIZACAO_POLO</option>
-                                <option value="REAGENDAMENTO_REALIZADO">REAGENDAMENTO_REALIZADO</option>
                                 <option value="CADASTRO_DISCIPLINA">CADASTRO_DISCIPLINA</option>
+                                <option value="CADASTRO_USUARIO">CADASTRO_USUARIO</option>
+                                <option value="CANCELAMENTO_BLOQUEADO">CANCELAMENTO_BLOQUEADO</option>
+                                <option value="CANCELAMENTO_REALIZADO">CANCELAMENTO_REALIZADO</option>
+                                <option value="COMPROVANTE_EMITIDO">COMPROVANTE_EMITIDO</option>
+                                <option value="CONFIRMACAO_ENTRADA">CONFIRMACAO_ENTRADA</option>
                                 <option value="INATIVACAO_DISCIPLINA">INATIVACAO_DISCIPLINA</option>
+                                <option value="LANÇAMENTO_NOTA">LANÇAMENTO_NOTA</option>
+                                <option value="LOGIN_FALHA">LOGIN_FALHA</option>
+                                <option value="REAGENDAMENTO_BLOQUEADO">REAGENDAMENTO_BLOQUEADO</option>
+                                <option value="REAGENDAMENTO_REALIZADO">REAGENDAMENTO_REALIZADO</option>
                                 <option value="REATIVACAO_DISCIPLINA">REATIVACAO_DISCIPLINA</option>
+                                <option value="REATIVACAO_USUARIO">REATIVACAO_USUARIO</option>
+                                <option value="REDEFINICAO_SENHA">REDEFINICAO_SENHA</option>
+                                <option value="SOFT_DELETE">SOFT_DELETE</option>
+                                <option value="SOLICITACAO_CODIGO_SENHA">SOLICITACAO_CODIGO_SENHA</option>
                             </select>
                         </div>
                     </div>
@@ -345,10 +358,11 @@
 
 
     <div id="modalVaga" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[92vh] overflow-y-auto p-6 sm:p-8 relative">
-            <button type="button" data-fechar-modal class="absolute top-5 right-5 text-slate-400 hover:text-slate-700 cursor-pointer" title="Fechar">
+        <div class="modal-medio bg-white rounded-2xl shadow-2xl overflow-hidden relative">
+            <button type="button" data-fechar-modal class="botao-icone absolute top-3 right-3 z-10 rounded-full bg-white text-slate-400 hover:text-slate-700 cursor-pointer" title="Fechar" aria-label="Fechar">
                 <i class="fa-solid fa-xmark text-xl"></i>
             </button>
+            <div class="modal-corpo p-6 sm:p-8">
             <h2 class="text-xl font-bold text-slate-900 flex items-center gap-2 pr-8">
                 <i class="fa-solid fa-circle-plus text-emerald-600"></i> Adição de Vagas
             </h2>
@@ -392,13 +406,15 @@
                     <button type="submit" class="flex-[2] bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-lg shadow-sm transition flex items-center justify-center gap-2 cursor-pointer"><i class="fa-solid fa-check"></i> Cadastrar Vagas no Banco</button>
                 </div>
             </form>
+            </div>
         </div>
     </div>
     <div id="modalUsuario" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[92vh] overflow-y-auto p-6 sm:p-8 relative">
-            <button type="button" data-fechar-modal class="absolute top-5 right-5 text-slate-400 hover:text-slate-700 cursor-pointer" title="Fechar">
+        <div class="modal-medio bg-white rounded-2xl shadow-2xl overflow-hidden relative">
+            <button type="button" data-fechar-modal class="botao-icone absolute top-3 right-3 z-10 rounded-full bg-white text-slate-400 hover:text-slate-700 cursor-pointer" title="Fechar" aria-label="Fechar">
                 <i class="fa-solid fa-xmark text-xl"></i>
             </button>
+            <div class="modal-corpo p-6 sm:p-8">
             <h2 class="text-xl font-bold text-slate-900 flex items-center gap-2 pr-8">
                 <i class="fa-solid fa-user-plus text-emerald-600"></i> Cadastro de Novos Usuários
             </h2>
@@ -455,13 +471,15 @@
                     <button type="submit" class="flex-[2] bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-lg shadow-sm transition flex items-center justify-center gap-2 cursor-pointer"><i class="fa-solid fa-id-card"></i> Cadastrar e enviar senha</button>
                 </div>
             </form>
+            </div>
         </div>
     </div>
     <div id="modalDisciplina" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[92vh] overflow-y-auto p-6 sm:p-8 relative">
-            <button type="button" data-fechar-modal class="absolute top-5 right-5 text-slate-400 hover:text-slate-700 cursor-pointer" title="Fechar">
+        <div class="modal-pequeno bg-white rounded-2xl shadow-2xl overflow-hidden relative">
+            <button type="button" data-fechar-modal class="botao-icone absolute top-3 right-3 z-10 rounded-full bg-white text-slate-400 hover:text-slate-700 cursor-pointer" title="Fechar" aria-label="Fechar">
                 <i class="fa-solid fa-xmark text-xl"></i>
             </button>
+            <div class="modal-corpo p-6 sm:p-8">
             <h2 class="text-xl font-bold text-slate-900 flex items-center gap-2 pr-8">
                 <i class="fa-solid fa-book text-emerald-600"></i> Nova disciplina
             </h2>
@@ -476,13 +494,15 @@
                     <button type="submit" class="flex-[2] bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-lg shadow-sm transition flex items-center justify-center gap-2 cursor-pointer"><i class="fa-solid fa-check"></i> Cadastrar disciplina</button>
                 </div>
             </form>
+            </div>
         </div>
     </div>
     <div id="modalDetalheVaga" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[92vh] overflow-y-auto p-6 sm:p-8 relative">
-            <button type="button" data-fechar-modal class="absolute top-5 right-5 text-slate-400 hover:text-slate-700 cursor-pointer" title="Fechar">
+        <div class="modal-medio bg-white rounded-2xl shadow-2xl overflow-hidden relative">
+            <button type="button" data-fechar-modal class="botao-icone absolute top-3 right-3 z-10 rounded-full bg-white text-slate-400 hover:text-slate-700 cursor-pointer" title="Fechar" aria-label="Fechar">
                 <i class="fa-solid fa-xmark text-xl"></i>
             </button>
+            <div class="modal-corpo p-6 sm:p-8">
             <h2 class="text-xl font-bold text-slate-900 flex items-center gap-2 pr-8">
                 <i class="fa-solid fa-calendar-check text-emerald-600"></i> Detalhes da vaga
             </h2>
@@ -490,6 +510,7 @@
             <div id="conteudoDetalheVaga" class="space-y-4"></div>
             <div class="flex pt-4">
                 <button type="button" data-fechar-modal class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold py-3 rounded-lg transition cursor-pointer">Fechar</button>
+            </div>
             </div>
         </div>
     </div>

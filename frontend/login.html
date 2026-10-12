@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <!-- SweetAlert2 CSS e JS -->
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <link rel="stylesheet" href="css/common.css">
   <link rel="stylesheet" href="css/login.css">
 </head>
 <body>
@@ -43,12 +44,13 @@
 
   <!-- Modal "Esqueci minha senha" com Verificação por Código -->
   <div id="modalRecuperar" class="modal-overlay" style="display: none;">
-    <div class="modal-box">
+    <div class="modal-box modal-pequeno">
       <div class="modal-header-custom">
         <h3><i class="fa-solid fa-key"></i> Redefinir Senha</h3>
         <i class="fa-solid fa-xmark" id="fecharModal"></i>
       </div>
 
+      <div class="modal-corpo">
       <!-- PASSO 1: Solicitar Envio do Código -->
       <div id="passo1Solicitar">
         <p style="font-size: 13px; color: #64748b; margin: 0;">
@@ -95,6 +97,7 @@
             <button type="submit" class="btn-modal-submit">Redefinir Senha</button>
           </div>
         </form>
+      </div>
       </div>
 
     </div>
