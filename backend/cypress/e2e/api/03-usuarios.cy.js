@@ -374,7 +374,7 @@ describe('API: exclusão lógica e reativação de usuários', () => {
           expect(r.body.find((v) => v.id === vaga.id).vagas_restantes).to.eq(3);
         });
         cy.api('GET', '/api/auditoria', { token: t.coord }).then((r) => {
-          expect(r.body.some((l) => l.acao === 'SOFT_DELETE' && l.descricao.includes(aluno.matricula) && l.usuario === USUARIOS.coord.nome)).to.eq(true);
+          expect(r.body.logs.some((l) => l.acao === 'SOFT_DELETE' && l.descricao.includes(aluno.matricula) && l.usuario === USUARIOS.coord.nome)).to.eq(true);
         });
       });
     });
@@ -431,7 +431,7 @@ describe('API: exclusão lógica e reativação de usuários', () => {
         expect(r.body.mensagem).to.contain('já está ativo');
       });
       cy.api('GET', '/api/auditoria', { token: t.coord }).then((r) => {
-        expect(r.body.some((l) => l.acao === 'REATIVACAO_USUARIO' && l.descricao.includes(aluno.matricula))).to.eq(true);
+        expect(r.body.logs.some((l) => l.acao === 'REATIVACAO_USUARIO' && l.descricao.includes(aluno.matricula))).to.eq(true);
       });
     });
   });
@@ -516,7 +516,7 @@ describe('API: polo da recepção', () => {
         });
         cy.bd('SELECT polo FROM usuarios WHERE id = $1', [rec.id]).then((rows) => expect(rows[0].polo).to.eq('Polo CY B'));
         cy.api('GET', '/api/auditoria', { token: t.coord }).then((r) => {
-          const log = r.body.find((l) => l.acao === 'ATUALIZACAO_POLO' && l.descricao.includes(rec.matricula));
+          const log = r.body.logs.find((l) => l.acao === 'ATUALIZACAO_POLO' && l.descricao.includes(rec.matricula));
           expect(log.descricao).to.contain('Polo CY A').and.contain('Polo CY B');
           expect(log.usuario).to.eq(USUARIOS.coord.nome);
         });

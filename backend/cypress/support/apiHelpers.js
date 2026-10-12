@@ -87,9 +87,12 @@ export function criarUsuarioAtivo(token, extra = {}) {
 // o aluno agenda a vaga. Devolve a resposta (para o teste conferir o status)
 export const agendar = (token, vagaId) => cy.api('POST', '/api/agendar', { token, body: { vaga_id: vagaId } });
 
-// lista de logs de auditoria (como coordenador)
+// lista de logs de auditoria (como coordenador): a 1ª página, com os 50 mais recentes
 export const logsDeAuditoria = (tokenCoord) =>
-  cy.api('GET', '/api/auditoria', { token: tokenCoord }).then((r) => r.body);
+  cy.api('GET', '/api/auditoria', { token: tokenCoord }).then((r) => {
+    expect(r.status, `logsDeAuditoria: ${JSON.stringify(r.body)}`).to.eq(200);
+    return r.body.logs;
+  });
 
 // insere uma vaga direto no banco de teste (para cenários que a API não permite criar:
 // vaga no passado, vaga antiga sem curso etc.). Devolve o id.

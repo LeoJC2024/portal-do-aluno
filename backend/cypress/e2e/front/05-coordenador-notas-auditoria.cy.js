@@ -1,4 +1,4 @@
-import { abrirCoordenador, irParaAba } from '../../support/telas';
+import { abrirCoordenador, irParaAba, respostaAuditoria } from '../../support/telas';
 
 const nota = (o = {}) => ({ id: 1, nome_aluno: 'Leonardo José', matricula: 'E00001', avaliacao: 'Machine Learning (A2)', polo: 'Resende', nota: '9.50', ...o });
 
@@ -91,6 +91,7 @@ describe('Coordenação: trilha de auditoria', () => {
   beforeEach(() => {
     abrirCoordenador({ logs });
     irParaAba('auditoria');
+    cy.wait('@logs'); // a aba recarrega a auditoria ao abrir; espera antes de simular outras respostas
   });
 
   it('lista os logs com ação, descrição, autor, data e IP', () => {
@@ -109,22 +110,63 @@ describe('Coordenação: trilha de auditoria', () => {
     cy.get('#filtroAcao option[value="ATUALIZACAO_FOTO"]').should('exist');
   });
 
+  // a partir daqui o filtro é feito no servidor: o teste confere o que a tela pediu e simula a resposta filtrada
+  const simularFiltro = (logsFiltrados, extra = {}) =>
+    cy.mockApi('GET', '/api/auditoria', respostaAuditoria(logsFiltrados, extra), { alias: 'filtro' });
+
   it('filtra por texto (usuário ou descrição)', () => {
+    simularFiltro([logs[1]]);
     cy.get('#filtroUsuario').type('vagas abertas');
     cy.contains('button', 'Filtrar Registros').click();
+    cy.wait('@filtro').its('request.query').should('deep.equal', { page: '1', busca: 'vagas abertas' });
     cy.get('#lista-logs-auditoria > div').should('have.length', 1).and('contain.text', 'ADICAO_VAGAS');
   });
 
   it('filtra por ação', () => {
+    simularFiltro([logs[2]]);
     cy.get('#filtroAcao').select('CADASTRO_USUARIO');
     cy.contains('button', 'Filtrar Registros').click();
+    cy.wait('@filtro').its('request.query').should('deep.equal', { page: '1', acao: 'CADASTRO_USUARIO' });
     cy.get('#lista-logs-auditoria > div').should('have.length', 1).and('contain.text', 'Bia');
   });
 
   it('sem resultado mostra mensagem', () => {
+    simularFiltro([]);
     cy.get('#filtroUsuario').type('nada-disso-existe');
     cy.contains('button', 'Filtrar Registros').click();
+    cy.wait('@filtro');
     cy.contains('Nenhum log encontrado com os filtros selecionados.');
+  });
+
+  it('ao abrir (a tela e a aba) pede a página 1 sem filtros', () => {
+    cy.get('@logs.all').should('have.length', 2).each((chamada) => {
+      expect(chamada.request.query).to.deep.equal({ page: '1' });
+    });
+  });
+
+  it('envia período, IP, ação e busca juntos para o servidor', () => {
+    simularFiltro([logs[0]]);
+    cy.get('#filtroUsuario').type('Ana');
+    cy.get('#filtroAcao').select('SOFT_DELETE');
+    cy.get('#filtroDataInicio').type('2030-05-01');
+    cy.get('#filtroDataFim').type('2030-05-31');
+    cy.get('#filtroIp').type('10.0.0');
+    cy.contains('button', 'Filtrar Registros').click();
+    cy.wait('@filtro').its('request.query').should('deep.equal', {
+      page: '1', busca: 'Ana', acao: 'SOFT_DELETE', data_inicio: '2030-05-01', data_fim: '2030-05-31', ip: '10.0.0'
+    });
+    cy.get('#lista-logs-auditoria > div').should('have.length', 1).and('contain.text', 'SOFT_DELETE');
+  });
+
+  it('erro de validação do servidor (400) aparece no lugar da lista', () => {
+    cy.mockApi('GET', '/api/auditoria', { sucesso: false, mensagem: 'A data inicial não pode ser depois da data final.' }, { status: 400, alias: 'filtro' });
+    cy.get('#filtroDataInicio').type('2030-05-10');
+    cy.get('#filtroDataFim').type('2030-05-01');
+    cy.contains('button', 'Filtrar Registros').click();
+    cy.wait('@filtro');
+    cy.get('#lista-logs-auditoria').should('contain.text', 'A data inicial não pode ser depois da data final.');
+    cy.get('#auditoriaAnterior').should('be.disabled');
+    cy.get('#auditoriaProxima').should('be.disabled');
   });
 
   it('descrição com HTML é exibida como texto', () => {
@@ -132,5 +174,64 @@ describe('Coordenação: trilha de auditoria', () => {
     irParaAba('auditoria');
     cy.get('#lista-logs-auditoria img').should('not.exist');
     cy.window().its('__xss').should('not.exist');
+  });
+});
+
+describe('Coordenação: paginação da auditoria', () => {
+  const logDaPagina = (n) => ({ id: n, acao: 'ADICAO_VAGAS', descricao: `log ${n}`, usuario: 'Prof. Carlos', ip: '10.0.0.5', data_hora: '2030-05-20T15:30:00.000Z' });
+
+  it('uma página só: "Página 1 de 1" e os dois botões desativados', () => {
+    abrirCoordenador({ logs: [logDaPagina(1)] });
+    irParaAba('auditoria');
+    cy.get('#auditoriaPaginaInfo').should('have.text', 'Página 1 de 1');
+    cy.get('#auditoriaTotal').should('have.text', '1 registro');
+    cy.get('#auditoriaAnterior').should('be.disabled');
+    cy.get('#auditoriaProxima').should('be.disabled');
+  });
+
+  it('Próxima e Anterior pedem a página certa e atualizam "Página X de Y"', () => {
+    abrirCoordenador({ logs: respostaAuditoria([logDaPagina(1)], { total: 120, totalPaginas: 3 }) });
+    irParaAba('auditoria');
+    cy.wait('@logs');
+    cy.get('#auditoriaPaginaInfo').should('have.text', 'Página 1 de 3');
+    cy.get('#auditoriaTotal').should('have.text', '120 registros');
+    cy.get('#auditoriaAnterior').should('be.disabled');
+
+    cy.mockApi('GET', '/api/auditoria', respostaAuditoria([logDaPagina(51)], { pagina: 2, total: 120, totalPaginas: 3 }), { alias: 'pagina' });
+    cy.get('#auditoriaProxima').should('be.enabled').click();
+    cy.wait('@pagina').its('request.query.page').should('eq', '2');
+    cy.get('#auditoriaPaginaInfo').should('have.text', 'Página 2 de 3');
+    cy.contains('#lista-logs-auditoria > div', 'LOG #51');
+    cy.get('#auditoriaAnterior').should('be.enabled');
+
+    cy.mockApi('GET', '/api/auditoria', respostaAuditoria([logDaPagina(101)], { pagina: 3, total: 120, totalPaginas: 3 }), { alias: 'pagina' });
+    cy.get('#auditoriaProxima').click();
+    cy.wait('@pagina').its('request.query.page').should('eq', '3');
+    cy.get('#auditoriaPaginaInfo').should('have.text', 'Página 3 de 3');
+    cy.get('#auditoriaProxima').should('be.disabled');
+
+    cy.mockApi('GET', '/api/auditoria', respostaAuditoria([logDaPagina(51)], { pagina: 2, total: 120, totalPaginas: 3 }), { alias: 'pagina' });
+    cy.get('#auditoriaAnterior').click();
+    cy.wait('@pagina').its('request.query.page').should('eq', '2');
+    cy.get('#auditoriaPaginaInfo').should('have.text', 'Página 2 de 3');
+  });
+
+  it('filtrar volta para a página 1 e mantém o filtro ao trocar de página', () => {
+    abrirCoordenador({ logs: respostaAuditoria([logDaPagina(1)], { total: 120, totalPaginas: 3 }) });
+    irParaAba('auditoria');
+    cy.wait('@logs');
+    cy.mockApi('GET', '/api/auditoria', respostaAuditoria([logDaPagina(51)], { pagina: 2, total: 120, totalPaginas: 3 }), { alias: 'pagina' });
+    cy.get('#auditoriaProxima').click();
+    cy.wait('@pagina');
+
+    cy.mockApi('GET', '/api/auditoria', respostaAuditoria([logDaPagina(1)], { total: 60, totalPaginas: 2 }), { alias: 'filtro' });
+    cy.get('#filtroIp').type('10.0.0.5');
+    cy.contains('button', 'Filtrar Registros').click();
+    cy.wait('@filtro').its('request.query').should('deep.equal', { page: '1', ip: '10.0.0.5' });
+    cy.get('#auditoriaPaginaInfo').should('have.text', 'Página 1 de 2');
+
+    cy.mockApi('GET', '/api/auditoria', respostaAuditoria([logDaPagina(51)], { pagina: 2, total: 60, totalPaginas: 2 }), { alias: 'pagina2' });
+    cy.get('#auditoriaProxima').click();
+    cy.wait('@pagina2').its('request.query').should('deep.equal', { page: '2', ip: '10.0.0.5' });
   });
 });

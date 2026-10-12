@@ -162,7 +162,7 @@ describe('API: recuperação de senha', () => {
       recuperar(u.matricula, s.body.codigo_teste, 'OutraSenha@99').its('status').should('eq', 200);
     });
     cy.api('GET', '/api/auditoria', { token: t.coord }).then((r) => {
-      expect(r.body.some((l) => l.acao === 'REDEFINICAO_SENHA' && l.descricao.includes(u.matricula))).to.eq(true);
+      expect(r.body.logs.some((l) => l.acao === 'REDEFINICAO_SENHA' && l.descricao.includes(u.matricula))).to.eq(true);
     });
   });
 });

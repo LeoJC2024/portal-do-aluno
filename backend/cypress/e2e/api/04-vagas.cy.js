@@ -30,7 +30,7 @@ describe('API: cadastro de vagas', () => {
   it('registra ADICAO_VAGAS na auditoria com o nome de quem criou', () => {
     criarVaga(t.coord).then((v) => {
       cy.api('GET', '/api/auditoria', { token: t.coord }).then((r) => {
-        const log = r.body.find((l) => l.acao === 'ADICAO_VAGAS' && l.descricao.includes(v.disciplina));
+        const log = r.body.logs.find((l) => l.acao === 'ADICAO_VAGAS' && l.descricao.includes(v.disciplina));
         expect(log, 'log da criação').to.exist;
         expect(log.usuario).to.eq(USUARIOS.coord.nome);
         expect(log.descricao).to.contain(CURSO_A).and.contain('08:00').and.contain('10:00');
@@ -194,7 +194,7 @@ describe('API: período de agendamento (cadastro)', () => {
       });
     });
     cy.api('GET', '/api/auditoria', { token: t.coord }).then((r) => {
-      const log = r.body.find((l) => l.acao === 'ADICAO_VAGAS' && l.descricao.includes(c.disciplina));
+      const log = r.body.logs.find((l) => l.acao === 'ADICAO_VAGAS' && l.descricao.includes(c.disciplina));
       expect(log.descricao).to.contain(`agendamento de ${c.agendamento_inicio} a ${c.agendamento_fim}`);
     });
   });

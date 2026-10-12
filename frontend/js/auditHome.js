@@ -7,16 +7,42 @@ document.addEventListener('DOMContentLoaded', () => {
 
   carregarDadosAuditoria();
 
-  const searchInput = document.getElementById('searchInput');
-  if (searchInput) {
-    searchInput.addEventListener('input', (e) => {
-      const termo = e.target.value.toLowerCase();
-      document.querySelectorAll('#auditTable tbody tr').forEach((linha) => {
-        linha.style.display = linha.textContent.toLowerCase().includes(termo) ? '' : 'none';
-      });
+  // filtros e busca são aplicados no servidor; qualquer mudança volta para a página 1
+  let espera;
+  const aoDigitar = () => {
+    clearTimeout(espera);
+    espera = setTimeout(() => carregarDadosAuditoria(1), 400);
+  };
+  ['searchInput', 'filtroIp'].forEach((id) => document.getElementById(id)?.addEventListener('input', aoDigitar));
+  ['filtroDataInicio', 'filtroDataFim', 'filtroAcao'].forEach((id) =>
+    document.getElementById(id)?.addEventListener('change', () => carregarDadosAuditoria(1)));
+
+  document.getElementById('btnLimparFiltros')?.addEventListener('click', () => {
+    ['searchInput', 'filtroDataInicio', 'filtroDataFim', 'filtroIp', 'filtroAcao'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
     });
-  }
+    clearTimeout(espera);
+    carregarDadosAuditoria(1);
+  });
+
+  document.getElementById('auditoriaAnterior')?.addEventListener('click', () => carregarDadosAuditoria(paginaAuditoria - 1));
+  document.getElementById('auditoriaProxima')?.addEventListener('click', () => carregarDadosAuditoria(paginaAuditoria + 1));
 });
+
+let paginaAuditoria = 1;
+let ultimaRequisicaoAuditoria = 0; // descarta respostas antigas que chegarem fora de ordem
+
+function filtrosAuditoria() {
+  const valor = (id) => document.getElementById(id)?.value ?? '';
+  return {
+    busca: valor('searchInput'),
+    data_inicio: valor('filtroDataInicio'),
+    data_fim: valor('filtroDataFim'),
+    ip: valor('filtroIp'),
+    acao: valor('filtroAcao')
+  };
+}
 
 function definirStatusBanco(ok) {
   const ponto = document.getElementById('dbStatusDot');
@@ -53,21 +79,36 @@ function classificarAcao(acao) {
   };
 }
 
-async function carregarDadosAuditoria() {
+async function carregarDadosAuditoria(pagina = paginaAuditoria) {
   const tbody = document.querySelector('#auditTable tbody');
+  const filtros = filtrosAuditoria();
+  const requisicao = ++ultimaRequisicaoAuditoria;
 
   try {
-    const { ok, dados } = await apiFetch('/api/admin/auditoria-completa');
-    if (!ok || !dados?.sucesso) throw new Error(dados?.mensagem || 'Falha ao carregar auditoria');
+    const { ok, status, dados } = await apiFetch(`/api/admin/auditoria-completa?${queryAuditoria(filtros, pagina)}`);
+    if (requisicao !== ultimaRequisicaoAuditoria) return;
+
+    // filtro inválido (ex.: data inicial depois da final): o servidor respondeu, só avisa na tabela
+    if (status === 400) {
+      definirStatusBanco(true);
+      tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-4 text-center text-amber-400">${escapeHtml(dados?.mensagem || 'Filtro inválido.')}</td></tr>`;
+      desativarPaginacaoAuditoria();
+      return;
+    }
+    if (!ok || !dados?.sucesso || !Array.isArray(dados.logs)) throw new Error(dados?.mensagem || 'Falha ao carregar auditoria');
 
     definirStatusBanco(true);
+    paginaAuditoria = Number(dados.pagina) || 1;
+    atualizarPaginacaoAuditoria(dados);
 
     setTexto('statTotalTransacoes', Number(dados.estatisticas.totalTransacoes).toLocaleString('pt-BR'));
     setTexto('statRegistrosInativos', Number(dados.estatisticas.registrosInativos).toLocaleString('pt-BR'));
     setTexto('statViolacoes', Number(dados.estatisticas.violacoes24h).toLocaleString('pt-BR'));
 
     if (dados.logs.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-4 text-center text-slate-500">Nenhum log registrado até o momento.</td></tr>';
+      const comFiltro = Object.values(filtros).some((v) => String(v).trim() !== '');
+      const mensagem = comFiltro ? 'Nenhum log encontrado com os filtros selecionados.' : 'Nenhum log registrado até o momento.';
+      tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-4 text-center text-slate-500">${mensagem}</td></tr>`;
       return;
     }
 
@@ -84,8 +125,10 @@ async function carregarDadosAuditoria() {
         </tr>`;
     }).join('');
   } catch (erro) {
+    if (requisicao !== ultimaRequisicaoAuditoria) return;
     console.error('Erro ao conectar com o serviço de auditoria:', erro);
     definirStatusBanco(false);
+    desativarPaginacaoAuditoria();
     if (tbody) {
       tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-4 text-center text-rose-400">Erro ao carregar os logs do servidor.</td></tr>';
     }

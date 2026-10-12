@@ -41,7 +41,7 @@ describe('API: cadastro de disciplinas', () => {
       expect(d.criado_em).to.be.a('string');
     });
     cy.api('GET', '/api/auditoria', { token: t.coord }).then((r) => {
-      expect(r.body.some((l) => l.acao === 'CADASTRO_DISCIPLINA' && l.descricao.includes(nome))).to.eq(true);
+      expect(r.body.logs.some((l) => l.acao === 'CADASTRO_DISCIPLINA' && l.descricao.includes(nome))).to.eq(true);
     });
   });
 
@@ -127,8 +127,8 @@ describe('API: cadastro de disciplinas', () => {
       alterar(id, true);
     });
     cy.api('GET', '/api/auditoria', { token: t.coord }).then((r) => {
-      expect(r.body.some((l) => l.acao === 'INATIVACAO_DISCIPLINA' && l.descricao.includes(nome))).to.eq(true);
-      expect(r.body.some((l) => l.acao === 'REATIVACAO_DISCIPLINA' && l.descricao.includes(nome))).to.eq(true);
+      expect(r.body.logs.some((l) => l.acao === 'INATIVACAO_DISCIPLINA' && l.descricao.includes(nome))).to.eq(true);
+      expect(r.body.logs.some((l) => l.acao === 'REATIVACAO_DISCIPLINA' && l.descricao.includes(nome))).to.eq(true);
     });
   });
 

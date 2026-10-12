@@ -296,6 +296,23 @@
                             </select>
                         </div>
                     </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div>
+                            <label for="filtroDataInicio" class="block font-semibold text-slate-600 mb-1.5">Data Inicial</label>
+                            <input type="date" id="filtroDataInicio"
+                                class="w-full bg-white border border-slate-300 rounded-lg p-2.5 outline-none focus:ring-1 focus:ring-emerald-500">
+                        </div>
+                        <div>
+                            <label for="filtroDataFim" class="block font-semibold text-slate-600 mb-1.5">Data Final</label>
+                            <input type="date" id="filtroDataFim"
+                                class="w-full bg-white border border-slate-300 rounded-lg p-2.5 outline-none focus:ring-1 focus:ring-emerald-500">
+                        </div>
+                        <div>
+                            <label for="filtroIp" class="block font-semibold text-slate-600 mb-1.5">Filtrar por IP</label>
+                            <input type="text" id="filtroIp" placeholder="Ex.: 10.0.0" maxlength="45"
+                                class="w-full bg-white border border-slate-300 rounded-lg p-2.5 outline-none focus:ring-1 focus:ring-emerald-500">
+                        </div>
+                    </div>
                     <div class="flex justify-end">
                         <button onclick="filtrarAuditoria()"
                             class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-4 py-2 rounded-lg shadow-sm transition flex items-center gap-2 cursor-pointer">
@@ -305,6 +322,21 @@
                 </div>
 
                 <div id="lista-logs-auditoria" class="space-y-3 font-mono text-xs">
+                </div>
+
+                <div class="mt-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
+                    <span id="auditoriaTotal">--</span>
+                    <div class="flex items-center gap-3">
+                        <button type="button" id="auditoriaAnterior" onclick="mudarPaginaAuditoria(-1)" disabled
+                            class="bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-medium px-3 py-1.5 rounded-lg transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
+                            <i class="fa-solid fa-chevron-left text-[10px]"></i> Anterior
+                        </button>
+                        <span id="auditoriaPaginaInfo" class="font-semibold text-slate-600">Página 1 de 1</span>
+                        <button type="button" id="auditoriaProxima" onclick="mudarPaginaAuditoria(1)" disabled
+                            class="bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-medium px-3 py-1.5 rounded-lg transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
+                            Próxima <i class="fa-solid fa-chevron-right text-[10px]"></i>
+                        </button>
+                    </div>
                 </div>
             </div>
         </section>

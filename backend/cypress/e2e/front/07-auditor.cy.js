@@ -1,7 +1,9 @@
 import { SESSOES } from '../../support/dados';
+import { respostaAuditoria } from '../../support/telas';
 
-const resposta = (logs, estatisticas = { totalTransacoes: 1234, registrosInativos: 7, violacoes24h: 2 }) =>
-  ({ sucesso: true, estatisticas, logs });
+const ESTATISTICAS = { totalTransacoes: 1234, registrosInativos: 7, violacoes24h: 2 };
+const resposta = (logs, estatisticas = ESTATISTICAS, paginacao = {}) =>
+  respostaAuditoria(logs, { estatisticas, ...paginacao });
 
 const log = (o = {}) => ({ id: 1, acao: 'ADICAO_VAGAS', descricao: 'ok', usuario: 'Prof. Carlos', ip: '10.0.0.1', data_hora: '2030-05-20T15:30:00.000Z', ...o });
 
@@ -11,6 +13,17 @@ function abrir(corpo, status = 200) {
   cy.abrirPagina('auditHome.html', SESSOES.audit);
   cy.wait('@auditoria');
 }
+
+// troca a resposta simulada das próximas chamadas (a definição mais nova tem prioridade)
+const simular = (corpo, alias, status = 200) =>
+  cy.mockApi('GET', '/api/admin/auditoria-completa', corpo, { status, alias });
+
+// Escolhe uma data como o navegador faz: valor completo + evento "change" na hora.
+// Não use cy.type() aqui: em <input type="date"> o Cypress grava o valor e dispara só "input";
+// o "change" fica pendente até o PRÓXIMO comando que interage com a página (ou um blur),
+// então a tela não recebe o "change" a tempo do cy.wait() e o próximo comando ainda dispara um "change" atrasado.
+const escolherData = (seletor, valor) =>
+  cy.get(seletor).invoke('val', valor).trigger('change').should('have.value', valor);
 
 describe('Auditoria (perfil AUDIT)', () => {
   it('mostra o usuário logado no cabeçalho', () => {
@@ -56,11 +69,17 @@ describe('Auditoria (perfil AUDIT)', () => {
     cy.contains('tr', 'LOGIN_FALHA').should('contain.text', 'FALHA');
   });
 
+  // a busca agora é feita no servidor: o teste confere o que a tela pediu e simula a resposta filtrada
   it('filtra a tabela pela caixa de busca', () => {
-    abrir(resposta([log({ id: 1, descricao: 'vagas de ML' }), log({ id: 2, acao: 'LOGIN_FALHA', usuario: null, ip: '8.8.8.8' })]));
+    const todos = [log({ id: 1, descricao: 'vagas de ML' }), log({ id: 2, acao: 'LOGIN_FALHA', usuario: null, ip: '8.8.8.8' })];
+    abrir(resposta(todos));
+    simular(resposta([todos[1]]), 'busca');
     cy.get('#searchInput').type('8.8.8.8');
+    cy.wait('@busca').its('request.query').should('deep.equal', { page: '1', busca: '8.8.8.8' });
     cy.get('#auditTable tbody tr:visible').should('have.length', 1).and('contain.text', 'LOGIN_FALHA');
+    simular(resposta(todos), 'semBusca');
     cy.get('#searchInput').clear();
+    cy.wait('@semBusca').its('request.query').should('deep.equal', { page: '1' });
     cy.get('#auditTable tbody tr:visible').should('have.length', 2);
   });
 
@@ -81,5 +100,170 @@ describe('Auditoria (perfil AUDIT)', () => {
     cy.get('#auditTable img').should('not.exist');
     cy.get('#auditTable b').should('not.exist');
     cy.window().its('__xss').should('not.exist');
+  });
+});
+
+describe('Auditoria (perfil AUDIT): filtros no servidor', () => {
+  it('ao abrir pede a página 1 sem filtros', () => {
+    abrir(resposta([log()]));
+    cy.get('@auditoria').its('request.query').should('deep.equal', { page: '1' });
+  });
+
+  it('tem filtros de data inicial, data final, IP e tipo de ação (com as ações de segurança)', () => {
+    abrir(resposta([]));
+    cy.get('#filtroDataInicio').should('have.attr', 'type', 'date');
+    cy.get('#filtroDataFim').should('have.attr', 'type', 'date');
+    cy.get('#filtroIp').should('exist');
+    ['LOGIN_FALHA', 'CANCELAMENTO_BLOQUEADO', 'REAGENDAMENTO_BLOQUEADO', 'SOFT_DELETE', 'LANÇAMENTO_NOTA'].forEach((acao) => {
+      cy.get(`#filtroAcao option[value="${acao}"]`).should('exist');
+    });
+  });
+
+  it('cada filtro vai para o servidor e se soma aos anteriores', () => {
+    abrir(resposta([log()]));
+    simular(resposta([log()]), 'acao');
+    cy.get('#filtroAcao').select('LOGIN_FALHA');
+    cy.wait('@acao').its('request.query').should('deep.equal', { page: '1', acao: 'LOGIN_FALHA' });
+
+    simular(resposta([log()]), 'inicio');
+    escolherData('#filtroDataInicio', '2030-05-01');
+    cy.wait('@inicio').its('request.query').should('deep.equal', { page: '1', acao: 'LOGIN_FALHA', data_inicio: '2030-05-01' });
+
+    simular(resposta([log()]), 'fim');
+    escolherData('#filtroDataFim', '2030-05-31');
+    cy.wait('@fim').its('request.query').should('deep.include', { data_inicio: '2030-05-01', data_fim: '2030-05-31' });
+
+    simular(resposta([log({ ip: '10.0.0.9' })]), 'ip');
+    cy.get('#filtroIp').type('10.0.0');
+    cy.wait('@ip').its('request.query').should('deep.equal', {
+      page: '1', acao: 'LOGIN_FALHA', data_inicio: '2030-05-01', data_fim: '2030-05-31', ip: '10.0.0'
+    });
+    cy.get('#auditTable tbody tr').should('have.length', 1).and('contain.text', '10.0.0.9');
+  });
+
+  it('com filtro e sem resultado mostra a mensagem de filtro (não a de "nenhum log")', () => {
+    abrir(resposta([log()]));
+    simular(resposta([]), 'vazio');
+    cy.get('#filtroIp').type('1.2.3.4');
+    cy.wait('@vazio');
+    cy.contains('Nenhum log encontrado com os filtros selecionados.');
+    cy.contains('Nenhum log registrado até o momento.').should('not.exist');
+  });
+
+  it('erro de validação (400) aparece na tabela, sem marcar o banco como fora do ar', () => {
+    abrir(resposta([log()]));
+    simular({ sucesso: false, mensagem: 'A data inicial não pode ser depois da data final.' }, 'invalido', 400);
+    escolherData('#filtroDataInicio', '2030-05-10');
+    cy.wait('@invalido');
+    cy.get('#auditTable tbody').should('contain.text', 'A data inicial não pode ser depois da data final.');
+    cy.get('#dbStatusTexto').should('have.text', 'DB Status: OK');
+    cy.get('#auditoriaAnterior').should('be.disabled');
+    cy.get('#auditoriaProxima').should('be.disabled');
+  });
+
+  it('mensagem de erro do servidor com HTML é exibida como texto', () => {
+    abrir(resposta([log()]));
+    simular({ sucesso: false, mensagem: '<img src=x onerror="window.__xss=1">' }, 'invalido', 400);
+    cy.get('#filtroIp').type('1');
+    cy.wait('@invalido');
+    cy.get('#auditTable img').should('not.exist');
+    cy.window().its('__xss').should('not.exist');
+  });
+
+  it('"Limpar filtros" apaga todos os campos e recarrega a página 1 sem filtros', () => {
+    abrir(resposta([log()]));
+    simular(resposta([log()]), 'filtrado');
+    cy.get('#filtroAcao').select('SOFT_DELETE');
+    cy.wait('@filtrado');
+    // preenche sem disparar eventos; só a digitação da busca gera a próxima chamada (com tudo junto)
+    cy.get('#filtroIp').invoke('val', '10.0');
+    cy.get('#filtroDataInicio').invoke('val', '2030-05-01');
+    cy.get('#filtroDataFim').invoke('val', '2030-05-31');
+    cy.get('#searchInput').type('Carlos');
+    cy.wait('@filtrado').its('request.query').should('deep.equal', {
+      page: '1', busca: 'Carlos', acao: 'SOFT_DELETE', ip: '10.0', data_inicio: '2030-05-01', data_fim: '2030-05-31'
+    });
+
+    simular(resposta([log()]), 'limpo');
+    cy.get('#btnLimparFiltros').click();
+    cy.wait('@limpo').its('request.query').should('deep.equal', { page: '1' });
+    ['#searchInput', '#filtroDataInicio', '#filtroDataFim', '#filtroIp', '#filtroAcao'].forEach((sel) => {
+      cy.get(sel).should('have.value', '');
+    });
+  });
+});
+
+describe('Auditoria (perfil AUDIT): paginação', () => {
+  const pagina = (n, totalPaginas = 3, total = 120) => resposta([log({ id: n, descricao: `log ${n}` })], ESTATISTICAS, { pagina: n, total, totalPaginas });
+
+  it('uma página só: "Página 1 de 1" e os dois botões desativados', () => {
+    abrir(resposta([log()]));
+    cy.get('#auditoriaPaginaInfo').should('have.text', 'Página 1 de 1');
+    cy.get('#auditoriaTotal').should('have.text', '1 registro');
+    cy.get('#auditoriaAnterior').should('be.disabled');
+    cy.get('#auditoriaProxima').should('be.disabled');
+  });
+
+  it('Próxima e Anterior navegam e mostram "Página X de Y"', () => {
+    abrir(pagina(1));
+    cy.get('#auditoriaPaginaInfo').should('have.text', 'Página 1 de 3');
+    cy.get('#auditoriaTotal').should('have.text', '120 registros');
+    cy.get('#auditoriaAnterior').should('be.disabled');
+
+    simular(pagina(2), 'p2');
+    cy.get('#auditoriaProxima').should('be.enabled').click();
+    cy.wait('@p2').its('request.query.page').should('eq', '2');
+    cy.get('#auditoriaPaginaInfo').should('have.text', 'Página 2 de 3');
+    cy.get('#auditTable tbody').should('contain.text', 'log 2');
+    cy.get('#auditoriaAnterior').should('be.enabled');
+
+    simular(pagina(3), 'p3');
+    cy.get('#auditoriaProxima').click();
+    cy.wait('@p3').its('request.query.page').should('eq', '3');
+    cy.get('#auditoriaPaginaInfo').should('have.text', 'Página 3 de 3');
+    cy.get('#auditoriaProxima').should('be.disabled');
+
+    simular(pagina(2), 'volta');
+    cy.get('#auditoriaAnterior').click();
+    cy.wait('@volta').its('request.query.page').should('eq', '2');
+    cy.get('#auditoriaPaginaInfo').should('have.text', 'Página 2 de 3');
+  });
+
+  it('mudar um filtro volta para a página 1; a paginação mantém o filtro', () => {
+    abrir(pagina(1));
+    simular(pagina(2), 'p2');
+    cy.get('#auditoriaProxima').click();
+    cy.wait('@p2');
+
+    simular(pagina(1, 2, 60), 'filtro');
+    cy.get('#filtroAcao').select('LOGIN_FALHA');
+    cy.wait('@filtro').its('request.query').should('deep.equal', { page: '1', acao: 'LOGIN_FALHA' });
+    cy.get('#auditoriaPaginaInfo').should('have.text', 'Página 1 de 2');
+
+    simular(pagina(2, 2, 60), 'filtroP2');
+    cy.get('#auditoriaProxima').click();
+    cy.wait('@filtroP2').its('request.query').should('deep.equal', { page: '2', acao: 'LOGIN_FALHA' });
+  });
+
+  it('os contadores do topo vêm do servidor (sobre todos os registros), mesmo com filtro e em outra página', () => {
+    abrir(pagina(1));
+    cy.get('#statTotalTransacoes').should('have.text', '1.234');
+    simular(resposta([log()], ESTATISTICAS, { total: 1, totalPaginas: 1 }), 'filtro');
+    cy.get('#filtroAcao').select('SOFT_DELETE');
+    cy.wait('@filtro');
+    cy.get('#auditoriaTotal').should('have.text', '1 registro');
+    cy.get('#statTotalTransacoes').should('have.text', '1.234');
+    cy.get('#statRegistrosInativos').should('have.text', '7');
+    cy.get('#statViolacoes').should('have.text', '2');
+  });
+
+  it('erro do servidor trava a paginação', () => {
+    abrir(pagina(1));
+    simular({ sucesso: false, mensagem: 'Erro interno.' }, 'erro', 500);
+    cy.get('#auditoriaProxima').click();
+    cy.wait('@erro');
+    cy.contains('Erro ao carregar os logs do servidor.');
+    cy.get('#auditoriaProxima').should('be.disabled');
+    cy.get('#auditoriaAnterior').should('be.disabled');
   });
 });

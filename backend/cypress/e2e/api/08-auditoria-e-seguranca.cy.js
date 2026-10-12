@@ -19,9 +19,9 @@ describe('API: trilha de auditoria', () => {
     criarVaga(t.coord);
     cy.api('GET', '/api/auditoria', { token: t.coord }).then((r) => {
       expect(r.status).to.eq(200);
-      expect(r.body.length).to.be.within(1, 50);
-      expect(r.body[0]).to.include.keys('id', 'acao', 'descricao', 'ip', 'data_hora', 'usuario');
-      const tempos = r.body.map((l) => new Date(l.data_hora).getTime());
+      expect(r.body.logs.length).to.be.within(1, 50);
+      expect(r.body.logs[0]).to.include.keys('id', 'acao', 'descricao', 'ip', 'data_hora', 'usuario');
+      const tempos = r.body.logs.map((l) => new Date(l.data_hora).getTime());
       tempos.slice(1).forEach((tempo, i) => expect(tempo).to.be.at.most(tempos[i]));
     });
   });
@@ -29,7 +29,7 @@ describe('API: trilha de auditoria', () => {
   it('cada ação grava quem fez (nome) e o IP', () => {
     criarVaga(t.coord).then((v) => {
       cy.api('GET', '/api/auditoria', { token: t.coord }).then((r) => {
-        const log = r.body.find((l) => l.acao === 'ADICAO_VAGAS' && l.descricao.includes(v.disciplina));
+        const log = r.body.logs.find((l) => l.acao === 'ADICAO_VAGAS' && l.descricao.includes(v.disciplina));
         expect(log.usuario).to.eq(USUARIOS.coord.nome);
         expect(log.ip).to.be.a('string').and.not.be.empty;
       });
@@ -40,18 +40,18 @@ describe('API: trilha de auditoria', () => {
     const tentada = `TENTATIVA_${Date.now()}`;
     cy.loginApi(tentada, 'x').its('status').should('eq', 401);
     cy.api('GET', '/api/auditoria', { token: t.coord }).then((r) => {
-      const log = r.body.find((l) => l.acao === 'LOGIN_FALHA' && l.descricao.includes(tentada));
+      const log = r.body.logs.find((l) => l.acao === 'LOGIN_FALHA' && l.descricao.includes(tentada));
       expect(log, 'log da falha de login').to.exist;
       expect(log.usuario).to.be.null;
     });
   });
 
-  it('o perfil AUDIT lê as estatísticas e até 100 logs; o coordenador não acessa essa rota', () => {
+  it('o perfil AUDIT lê as estatísticas e até 50 logs por página; o coordenador não acessa essa rota', () => {
     cy.api('GET', '/api/admin/auditoria-completa', { token: t.audit }).then((r) => {
       expect(r.status).to.eq(200);
       expect(r.body.sucesso).to.eq(true);
       ['totalTransacoes', 'registrosInativos', 'violacoes24h'].forEach((k) => expect(r.body.estatisticas[k]).to.be.a('number'));
-      expect(r.body.logs.length).to.be.at.most(100);
+      expect(r.body.logs.length).to.be.at.most(50);
     });
     cy.api('GET', '/api/admin/auditoria-completa', { token: t.coord }).its('status').should('eq', 403);
   });

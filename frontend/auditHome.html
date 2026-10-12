@@ -95,8 +95,59 @@
                 </h2>
 
                 <div class="flex gap-2 font-mono text-xs">
-                    <input type="text" id="searchInput" placeholder="Filtrar por IP, Usuário ou Ação..."
+                    <input type="text" id="searchInput" placeholder="Filtrar por IP, Usuário ou Ação..." maxlength="100"
                         class="bg-slate-900 border border-slate-600 rounded px-3 py-1.5 text-slate-200 focus:outline-none focus:border-emerald-500 w-full md:w-72">
+                </div>
+            </div>
+
+            <!-- Filtros aplicados no servidor -->
+            <div class="p-4 border-b border-slate-700 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 font-mono text-xs items-end">
+                <div>
+                    <label for="filtroDataInicio" class="block text-slate-400 uppercase mb-1">Data inicial</label>
+                    <input type="date" id="filtroDataInicio"
+                        class="w-full bg-slate-900 border border-slate-600 rounded px-3 py-1.5 text-slate-200 focus:outline-none focus:border-emerald-500 [color-scheme:dark]">
+                </div>
+                <div>
+                    <label for="filtroDataFim" class="block text-slate-400 uppercase mb-1">Data final</label>
+                    <input type="date" id="filtroDataFim"
+                        class="w-full bg-slate-900 border border-slate-600 rounded px-3 py-1.5 text-slate-200 focus:outline-none focus:border-emerald-500 [color-scheme:dark]">
+                </div>
+                <div>
+                    <label for="filtroIp" class="block text-slate-400 uppercase mb-1">Endereço IP</label>
+                    <input type="text" id="filtroIp" placeholder="Ex.: 10.0.0" maxlength="45"
+                        class="w-full bg-slate-900 border border-slate-600 rounded px-3 py-1.5 text-slate-200 focus:outline-none focus:border-emerald-500">
+                </div>
+                <div>
+                    <label for="filtroAcao" class="block text-slate-400 uppercase mb-1">Tipo de ação</label>
+                    <select id="filtroAcao"
+                        class="w-full bg-slate-900 border border-slate-600 rounded px-3 py-1.5 text-slate-200 focus:outline-none focus:border-emerald-500">
+                        <option value="">Todas as ações</option>
+                        <option value="ADICAO_VAGAS">ADICAO_VAGAS</option>
+                        <option value="AGENDAMENTO_REALIZADO">AGENDAMENTO_REALIZADO</option>
+                        <option value="ATUALIZACAO_FOTO">ATUALIZACAO_FOTO</option>
+                        <option value="ATUALIZACAO_POLO">ATUALIZACAO_POLO</option>
+                        <option value="CADASTRO_DISCIPLINA">CADASTRO_DISCIPLINA</option>
+                        <option value="CADASTRO_USUARIO">CADASTRO_USUARIO</option>
+                        <option value="CANCELAMENTO_BLOQUEADO">CANCELAMENTO_BLOQUEADO</option>
+                        <option value="CANCELAMENTO_REALIZADO">CANCELAMENTO_REALIZADO</option>
+                        <option value="CONFIRMACAO_ENTRADA">CONFIRMACAO_ENTRADA</option>
+                        <option value="INATIVACAO_DISCIPLINA">INATIVACAO_DISCIPLINA</option>
+                        <option value="LANÇAMENTO_NOTA">LANÇAMENTO_NOTA</option>
+                        <option value="LOGIN_FALHA">LOGIN_FALHA</option>
+                        <option value="REAGENDAMENTO_BLOQUEADO">REAGENDAMENTO_BLOQUEADO</option>
+                        <option value="REAGENDAMENTO_REALIZADO">REAGENDAMENTO_REALIZADO</option>
+                        <option value="REATIVACAO_DISCIPLINA">REATIVACAO_DISCIPLINA</option>
+                        <option value="REATIVACAO_USUARIO">REATIVACAO_USUARIO</option>
+                        <option value="REDEFINICAO_SENHA">REDEFINICAO_SENHA</option>
+                        <option value="SOFT_DELETE">SOFT_DELETE</option>
+                        <option value="SOLICITACAO_CODIGO_SENHA">SOLICITACAO_CODIGO_SENHA</option>
+                    </select>
+                </div>
+                <div>
+                    <button type="button" id="btnLimparFiltros"
+                        class="w-full bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded px-3 py-1.5 text-slate-200 transition cursor-pointer">
+                        Limpar filtros
+                    </button>
                 </div>
             </div>
 
@@ -116,6 +167,22 @@
                         <!-- Os dados serão injetados dinamicamente via JavaScript do banco -->
                     </tbody>
                 </table>
+            </div>
+
+            <!-- Paginação -->
+            <div class="p-4 border-t border-slate-700 flex flex-col sm:flex-row items-center justify-between gap-3 font-mono text-xs text-slate-400">
+                <span id="auditoriaTotal">--</span>
+                <div class="flex items-center gap-3">
+                    <button type="button" id="auditoriaAnterior" disabled
+                        class="bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded px-3 py-1.5 text-slate-200 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
+                        &larr; Anterior
+                    </button>
+                    <span id="auditoriaPaginaInfo">Página 1 de 1</span>
+                    <button type="button" id="auditoriaProxima" disabled
+                        class="bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded px-3 py-1.5 text-slate-200 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
+                        Próxima &rarr;
+                    </button>
+                </div>
             </div>
         </div>
     </main>

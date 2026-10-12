@@ -1449,14 +1449,109 @@ app.post('/api/portaria/confirmar-entrada', autenticar, exigirPerfil(PERFIL.RECE
 // ==========================================
 // AUDITORIA
 // ==========================================
+const AUDITORIA_POR_PAGINA = 50;
+const AUDITORIA_MAX_POR_PAGINA = 100;
+const LIMITE_FILTRO_IP = 45;    // maior IPv6 escrito em texto
+const LIMITE_FILTRO_ACAO = 50;
+
+// parâmetro de texto da query string: aparado, sem repetição (?x=1&x=2) e sem caracteres de controle
+function parametroTexto(query, nome, rotulo, max) {
+  const valor = query[nome];
+  if (valor === undefined) return '';
+  if (typeof valor !== 'string') throw new ErroHttp(400, `Parâmetro "${nome}" repetido ou inválido.`);
+  const texto = valor.trim();
+  if (/[\u0000-\u001f\u007f]/.test(texto)) throw new ErroHttp(400, `${rotulo} contém caracteres inválidos.`);
+  exigirTamanho(rotulo, texto, max);
+  return texto;
+}
+
+// lê e valida filtros e paginação das rotas de auditoria (tudo vira parâmetro da consulta, nada é concatenado)
+function lerFiltrosAuditoria(query) {
+  const paginaTexto = parametroTexto(query, 'page', 'A página', 10);
+  const pagina = paginaTexto === '' ? 1 : inteiroEstrito(paginaTexto);
+  if (pagina === null || pagina < 1) throw new ErroHttp(400, 'A página deve ser um número inteiro maior ou igual a 1.');
+
+  const limiteTexto = parametroTexto(query, 'limite', 'O limite', 10);
+  const limite = limiteTexto === '' ? AUDITORIA_POR_PAGINA : inteiroEstrito(limiteTexto);
+  if (limite === null || limite < 1 || limite > AUDITORIA_MAX_POR_PAGINA) {
+    throw new ErroHttp(400, `O limite deve ser um número inteiro entre 1 e ${AUDITORIA_MAX_POR_PAGINA}.`);
+  }
+
+  const dataInicio = parametroTexto(query, 'data_inicio', 'A data inicial', 10);
+  const dataFim = parametroTexto(query, 'data_fim', 'A data final', 10);
+  // o ano 0000 passa no dataValida, mas o Postgres não aceita (daria erro 500)
+  const dataDoFiltro = (s) => dataValida(s) && s >= '1900-01-01';
+  if (dataInicio && !dataDoFiltro(dataInicio)) throw new ErroHttp(400, 'Data inicial inválida (use AAAA-MM-DD).');
+  if (dataFim && !dataDoFiltro(dataFim)) throw new ErroHttp(400, 'Data final inválida (use AAAA-MM-DD).');
+  if (dataInicio && dataFim && dataInicio > dataFim) {
+    throw new ErroHttp(400, 'A data inicial não pode ser depois da data final.');
+  }
+
+  const ip = parametroTexto(query, 'ip', 'O IP', LIMITE_FILTRO_IP);
+  if (ip && !/^[0-9A-Fa-f.:]+$/.test(ip)) throw new ErroHttp(400, 'O IP deve conter só números, letras de A a F, "." e ":".');
+
+  const acao = parametroTexto(query, 'acao', 'A ação', LIMITE_FILTRO_ACAO).toUpperCase();
+  if (acao && !/^[\p{Lu}_]+$/u.test(acao)) throw new ErroHttp(400, 'Tipo de ação inválido.');
+
+  const busca = parametroTexto(query, 'busca', 'A busca', LIMITE.BUSCA);
+
+  return { pagina, limite, dataInicio, dataFim, ip, acao, busca };
+}
+
+// busca uma página da auditoria com os filtros. O período é em dias do fuso de São Paulo;
+// data_hora é gravada em UTC, então os limites são convertidos para UTC (e o índice em data_hora é usado)
+async function consultarAuditoria(f) {
+  const condicoes = [];
+  const params = [];
+  const p = (valor) => { params.push(valor); return `$${params.length}`; };
+
+  if (f.busca) {
+    const like = p(`%${escapeLike(f.busca)}%`);
+    condicoes.push(`(usuario ILIKE ${like} OR descricao ILIKE ${like} OR acao ILIKE ${like} OR ip ILIKE ${like} OR id::text = ${p(f.busca)})`);
+  }
+  if (f.dataInicio || f.dataFim) {
+    const fuso = p(FUSO);
+    if (f.dataInicio) condicoes.push(`data_hora >= (${p(f.dataInicio)}::date::timestamp AT TIME ZONE ${fuso}) AT TIME ZONE 'UTC'`);
+    if (f.dataFim) condicoes.push(`data_hora < ((${p(f.dataFim)}::date + 1)::timestamp AT TIME ZONE ${fuso}) AT TIME ZONE 'UTC'`);
+  }
+  if (f.ip) condicoes.push(`ip ILIKE ${p(`%${escapeLike(f.ip)}%`)}`);
+  if (f.acao) condicoes.push(`acao = ${p(f.acao)}`);
+
+  const where = condicoes.length ? `WHERE ${condicoes.join(' AND ')}` : '';
+  const paramsFiltro = [...params];
+  const limite = p(f.limite);
+  const deslocamento = p((f.pagina - 1) * f.limite);
+
+  const [logs, contagem] = await Promise.all([
+    pool.query(
+      `SELECT id, acao, descricao, usuario, ip, data_hora FROM auditoria ${where}
+        ORDER BY data_hora DESC, id DESC
+        LIMIT ${limite} OFFSET ${deslocamento}`,
+      params
+    ),
+    pool.query(`SELECT COUNT(*)::int AS n FROM auditoria ${where}`, paramsFiltro)
+  ]);
+
+  const total = contagem.rows[0].n;
+  return {
+    logs: logs.rows,
+    pagina: f.pagina,
+    limite: f.limite,
+    total,
+    totalPaginas: Math.max(1, Math.ceil(total / f.limite))
+  };
+}
+
 app.get('/api/auditoria', autenticar, exigirPerfil(PERFIL.COORD, PERFIL.AUDIT), rota(async (req, res) => {
-  const { rows } = await pool.query('SELECT * FROM auditoria ORDER BY data_hora DESC LIMIT 50');
-  res.json(rows);
+  const filtros = lerFiltrosAuditoria(req.query);
+  res.json({ sucesso: true, ...(await consultarAuditoria(filtros)) });
 }));
 
 app.get('/api/admin/auditoria-completa', autenticar, exigirPerfil(PERFIL.AUDIT), rota(async (req, res) => {
-  const [logs, total, inativos, violacoes] = await Promise.all([
-    pool.query('SELECT * FROM auditoria ORDER BY data_hora DESC LIMIT 100'),
+  const filtros = lerFiltrosAuditoria(req.query);
+  // os contadores do topo são sempre sobre todos os registros (não dependem dos filtros)
+  const [pagina, total, inativos, violacoes] = await Promise.all([
+    consultarAuditoria(filtros),
     pool.query('SELECT COUNT(*)::int AS n FROM auditoria'),
     pool.query(`SELECT COUNT(*)::int AS n FROM agendamentos WHERE status = 'INATIVO'`),
     pool.query(
@@ -1473,7 +1568,7 @@ app.get('/api/admin/auditoria-completa', autenticar, exigirPerfil(PERFIL.AUDIT),
       registrosInativos: inativos.rows[0].n,
       violacoes24h: violacoes.rows[0].n
     },
-    logs: logs.rows
+    ...pagina
   });
 }));
 

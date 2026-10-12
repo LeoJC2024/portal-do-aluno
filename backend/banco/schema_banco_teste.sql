@@ -74,6 +74,9 @@ CREATE TABLE IF NOT EXISTS auditoria (
   data_hora  TIMESTAMP DEFAULT now(),
   usuario    TEXT
 );
+-- filtros e paginação da trilha de auditoria (migracao_auditoria.sql)
+CREATE INDEX IF NOT EXISTS ix_auditoria_data_hora ON auditoria (data_hora DESC, id DESC);
+CREATE INDEX IF NOT EXISTS ix_auditoria_acao_data_hora ON auditoria (acao, data_hora DESC);
 
 CREATE OR REPLACE FUNCTION auditoria_imutavel() RETURNS trigger AS $$
 BEGIN

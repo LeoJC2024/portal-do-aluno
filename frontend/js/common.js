@@ -148,6 +148,38 @@ function sairDaConta() {
   });
 }
 
+// ---------- auditoria (filtros e paginação no servidor; usados pelo auditor e pela coordenação) ----------
+// monta a query string só com os filtros preenchidos
+function queryAuditoria(filtros, pagina) {
+  const params = new URLSearchParams({ page: String(pagina) });
+  Object.entries(filtros).forEach(([chave, valor]) => {
+    const v = String(valor ?? '').trim();
+    if (v) params.set(chave, v);
+  });
+  return params.toString();
+}
+
+// atualiza "Página X de Y", o total e os botões Anterior / Próxima
+function atualizarPaginacaoAuditoria(dados) {
+  const pagina = Number(dados?.pagina) || 1;
+  const totalPaginas = Math.max(1, Number(dados?.totalPaginas) || 1);
+  const total = Number(dados?.total) || 0;
+  setTexto('auditoriaPaginaInfo', `Página ${pagina} de ${totalPaginas}`);
+  setTexto('auditoriaTotal', `${total.toLocaleString('pt-BR')} registro${total === 1 ? '' : 's'}`);
+  const anterior = document.getElementById('auditoriaAnterior');
+  const proxima = document.getElementById('auditoriaProxima');
+  if (anterior) anterior.disabled = pagina <= 1;
+  if (proxima) proxima.disabled = pagina >= totalPaginas;
+}
+
+// em erro, trava a navegação (a página exibida não corresponde mais aos filtros)
+function desativarPaginacaoAuditoria() {
+  ['auditoriaAnterior', 'auditoriaProxima'].forEach((id) => {
+    const botao = document.getElementById(id);
+    if (botao) botao.disabled = true;
+  });
+}
+
 function setTexto(id, texto) {
   const el = document.getElementById(id);
   if (el) el.textContent = texto;

@@ -1,4 +1,3 @@
-let logsGlobais = [];
 let vagasGestao = [];
 let disciplinas = [];
 let fotoCadastro = null;      // foto escolhida no formulário (data URL já reduzida)
@@ -790,15 +789,47 @@ async function salvarNota(id, botao) {
 // ==========================================
 // AUDITORIA
 // ==========================================
-async function carregarAuditoria() {
+let paginaAuditoria = 1;
+let ultimaRequisicaoAuditoria = 0; // descarta respostas antigas que chegarem fora de ordem
+
+function filtrosAuditoria() {
+  return {
+    busca: byId('filtroUsuario').value,
+    acao: byId('filtroAcao').value,
+    data_inicio: byId('filtroDataInicio').value,
+    data_fim: byId('filtroDataFim').value,
+    ip: byId('filtroIp').value
+  };
+}
+
+// filtros e paginação são feitos no servidor; sem argumento recarrega a página atual
+// (é chamada assim depois de cada ação da coordenação)
+async function carregarAuditoria(pagina = paginaAuditoria) {
+  const requisicao = ++ultimaRequisicaoAuditoria;
   try {
-    const { ok, dados } = await apiFetch('/api/auditoria');
-    if (!ok || !Array.isArray(dados)) throw new Error(dados?.mensagem || 'Falha ao carregar auditoria');
-    logsGlobais = dados;
-    filtrarAuditoria();
+    const { ok, status, dados } = await apiFetch(`/api/auditoria?${queryAuditoria(filtrosAuditoria(), pagina)}`);
+    if (requisicao !== ultimaRequisicaoAuditoria) return;
+
+    if (status === 400) {
+      const container = byId('lista-logs-auditoria');
+      if (container) container.innerHTML = `<p class="text-amber-700 text-center py-4">${escapeHtml(dados?.mensagem || 'Filtro inválido.')}</p>`;
+      desativarPaginacaoAuditoria();
+      return;
+    }
+    if (!ok || !Array.isArray(dados?.logs)) throw new Error(dados?.mensagem || 'Falha ao carregar auditoria');
+
+    paginaAuditoria = Number(dados.pagina) || 1;
+    atualizarPaginacaoAuditoria(dados);
+    renderizarLogs(dados.logs);
   } catch (e) {
+    if (requisicao !== ultimaRequisicaoAuditoria) return;
     console.error('Erro ao carregar auditoria:', e);
+    desativarPaginacaoAuditoria();
   }
+}
+
+function mudarPaginaAuditoria(passo) {
+  carregarAuditoria(paginaAuditoria + passo);
 }
 
 function renderizarLogs(lista) {
@@ -824,14 +855,9 @@ function renderizarLogs(lista) {
   }).join('');
 }
 
+// botão "Filtrar Registros": aplica os filtros a partir da página 1
 function filtrarAuditoria() {
-  const texto = byId('filtroUsuario').value.trim().toLowerCase();
-  const acao = byId('filtroAcao').value;
-
-  renderizarLogs(logsGlobais.filter((log) => {
-    const alvo = `${log.usuario || ''} ${log.descricao || ''} ${log.id}`.toLowerCase();
-    return alvo.includes(texto) && (acao === '' || log.acao === acao);
-  }));
+  carregarAuditoria(1);
 }
 
 // ==========================================
