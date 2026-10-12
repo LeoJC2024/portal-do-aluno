@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel da Coordenação - UNIFAA</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- SweetAlert2 CSS e JS -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    </head>
+
+<body data-sistema="Gestão Acadêmica" class="bg-slate-100 text-slate-800 antialiased min-h-screen flex flex-col">
+
+    <!-- HEADER / NAVBAR SUPERIOR PADRONIZADO -->
+    <header class="bg-emerald-900 text-white shadow-md border-b-4 border-emerald-600 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-2 sm:px-4 lg:px-6 h-20 flex items-center justify-between gap-2">
+
+            <div class="flex items-center space-x-2 shrink-0">
+                <div
+                    class="bg-emerald-800 px-3 py-1.5 rounded-xl border border-emerald-700 flex items-center justify-center shadow-inner">
+                    <svg class="h-8 w-auto text-emerald-400" viewBox="0 0 150 40" fill="none"
+                        xmlns="http://www.w3.org/2000/svg">
+                        <path d="M18 10L3 18L18 26L33 18L18 10Z" fill="currentColor" />
+                        <path d="M8 22V27C8 29.5 12.5 31.5 18 31.5C23.5 31.5 28 29.5 28 27V22" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" />
+                        <path d="M30 19.5V28" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                        <text x="40" y="27" fill="#FFFFFF" font-family="Arial, sans-serif" font-weight="900"
+                            font-size="20" letter-spacing="1">UNIFAA</text>
+                    </svg>
+                </div>
+                <div class="h-8 w-px bg-emerald-700 hidden sm:block"></div>
+                <div class="hidden lg:flex items-center gap-2">
+                    <span class="text-lg font-bold tracking-tight text-emerald-50">Gestão Acadêmica</span>
+                </div>
+            </div>
+
+            <nav class="flex space-x-1 sm:space-x-2 text-xs sm:text-sm font-medium items-center">
+                <button onclick="switchTab('oferta', this)" id="btn-oferta"
+                    class="tab-btn px-2 sm:px-3 py-2 rounded-lg transition font-bold bg-emerald-800 text-white border border-emerald-700 shadow-sm cursor-pointer whitespace-nowrap flex items-center gap-1 sm:gap-2">
+                    <i class="fa-solid fa-circle-plus"></i> <span class="hidden md:inline">1. </span>Adição de Vagas
+                </button>
+                <button onclick="switchTab('usuarios', this)" id="btn-usuarios"
+                    class="tab-btn px-2 sm:px-3 py-2 rounded-lg transition text-emerald-200 hover:text-white hover:bg-emerald-800/50 cursor-pointer whitespace-nowrap flex items-center gap-1 sm:gap-2">
+                    <i class="fa-solid fa-user-plus"></i> <span class="hidden md:inline">2. </span>Cadastro de Usuários
+                </button>
+                <button onclick="switchTab('disciplinas', this)" id="btn-disciplinas"
+                    class="tab-btn px-2 sm:px-3 py-2 rounded-lg transition text-emerald-200 hover:text-white hover:bg-emerald-800/50 cursor-pointer whitespace-nowrap flex items-center gap-1 sm:gap-2">
+                    <i class="fa-solid fa-book"></i> <span class="hidden md:inline">3. </span>Disciplinas
+                </button>
+                <button onclick="switchTab('sincronizacao', this)" id="btn-sincronizacao"
+                    class="tab-btn px-2 sm:px-3 py-2 rounded-lg transition text-emerald-200 hover:text-white hover:bg-emerald-800/50 cursor-pointer whitespace-nowrap flex items-center gap-1 sm:gap-2">
+                    <i class="fa-solid fa-rotate"></i> <span class="hidden md:inline">4. </span>Sincronização de Notas
+                </button>
+                <button onclick="switchTab('auditoria', this)" id="btn-auditoria"
+                    class="tab-btn px-2 sm:px-3 py-2 rounded-lg transition text-emerald-200 hover:text-white hover:bg-emerald-800/50 cursor-pointer whitespace-nowrap flex items-center gap-1 sm:gap-2">
+                    <i class="fa-solid fa-shield-halved"></i> <span class="hidden md:inline">5. </span>Trilha de Auditoria
+                </button>
+            </nav>
+
+            <div class="relative shrink-0">
+                <div class="flex items-center space-x-3 cursor-pointer p-1.5 rounded-lg hover:bg-emerald-800/50 transition"
+                    onclick="toggleMenu(event)">
+                    <div class="text-right hidden sm:block">
+                        <p class="text-sm font-semibold text-emerald-100 uppercase" id="userName">Prof. Coordenador</p>
+                        <p class="text-xs text-emerald-300 flex items-center gap-1 justify-end" id="userCourse">
+                            Coordenador <i class="fa-solid fa-chevron-down text-[9px]"></i>
+                        </p>
+                    </div>
+                    <div class="w-10 h-10 rounded-full bg-emerald-700 flex items-center justify-center font-bold text-white border-2 border-emerald-500 shadow-sm"
+                        id="userAvatar">
+                        C
+                    </div>
+                </div>
+
+                <div id="userDropdown"
+                    class="absolute right-0 top-full mt-2 w-48 bg-white rounded-xl shadow-xl border border-slate-200 hidden overflow-hidden z-50 text-slate-800">
+                    <!-- <div onclick="alert('Função de Alterar Senha em desenvolvimento.')" class="px-4 py-3 text-xs font-semibold hover:bg-slate-50 border-b border-slate-100 flex items-center justify-between cursor-pointer transition">
+                        <span>Alterar Senha</span>
+                        <i class="fa-solid fa-key text-slate-400"></i>
+                    </div>-->
+                    <div onclick="sairDaConta()"
+                        class="px-4 py-3 text-xs font-semibold text-red-600 hover:bg-red-50 flex items-center justify-between cursor-pointer transition">
+                        <span>Sair da Conta</span>
+                        <i class="fa-solid fa-right-from-bracket"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full space-y-6">
+
+        <div
+            class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+            <div>
+                <h1 class="text-xl sm:text-2xl font-bold text-slate-900">Painel da Coordenação Acadêmica</h1>
+                <p class="text-slate-600 text-sm mt-1">Gerencie a adição de vagas, novos cadastros institucionais, notas
+                    e logs do sistema.</p>
+                <div class="mt-3 flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-full bg-emerald-700 text-white flex items-center justify-center font-bold border-2 border-emerald-500"
+                        id="tituloAvatar">C</div>
+                    <div>
+                        <p class="text-sm font-semibold text-slate-900" id="tituloNome"></p>
+                        <p class="text-xs text-slate-500 font-mono" id="tituloMatricula"></p>
+                    </div>
+                </div>
+            </div>
+            <div
+                class="bg-emerald-50 border-l-4 border-emerald-600 p-3 rounded-r-xl text-xs text-emerald-900 flex items-center gap-2 max-w-md shadow-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-emerald-600 shrink-0" fill="none"
+                    viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+                <span><strong>Segurança & RBAC:</strong> Operações validadas por nível de acesso autenticado.</span>
+            </div>
+        </div>
+
+        <!-- ABA 1: Adição de Vagas -->
+        <section id="page-oferta" class="page-content space-y-6">
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden border-t-4 border-t-emerald-600 p-6 sm:p-8">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-5">
+                    <h2 class="text-xl font-bold text-slate-900 flex items-center gap-2">
+                        <i class="fa-solid fa-circle-plus text-emerald-600"></i> Adição de Vagas e Provas
+                    </h2>
+                    <div class="flex gap-2 w-full md:w-auto">
+                        <input type="text" id="buscaVaga" placeholder="Buscar por disciplina ou polo..." class="bg-slate-50 border border-slate-300 rounded-lg px-3 py-2.5 text-xs w-full md:w-72 focus:ring-2 focus:ring-emerald-500 outline-none">
+                        <button type="button" id="btnAdicionarVaga" onclick="abrirModal('modalVaga')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-2.5 rounded-lg shadow-sm transition flex items-center justify-center gap-2 cursor-pointer text-xs whitespace-nowrap">
+                            <i class="fa-solid fa-plus"></i> Adicionar Vagas
+                        </button>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm text-left text-slate-600">
+                        <thead class="text-xs text-slate-700 uppercase bg-slate-100 border-b border-slate-200">
+                            <tr>
+                                <th class="px-4 py-3">Polo / Curso</th>
+                                <th class="px-4 py-3">Disciplina / Avaliação</th>
+                                <th class="px-4 py-3">Data e horário</th>
+                                <th class="px-4 py-3">Período de agendamento</th>
+                                <th class="px-4 py-3 text-center">Vagas</th>
+                                <th class="px-4 py-3">Cadastrada em</th>
+                                <th class="px-4 py-3 text-right">Ação</th>
+                            </tr>
+                        </thead>
+                        <tbody id="listaVagas" class="divide-y divide-slate-200">
+                            <tr><td colspan="7" class="px-4 py-8 text-center text-slate-400">Carregando vagas...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ABA 2: Cadastro de Usuários -->
+        <section id="page-usuarios" class="page-content space-y-6 hidden">
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden border-t-4 border-t-emerald-600 p-6 sm:p-8">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-5">
+                    <h2 class="text-xl font-bold text-slate-900 flex items-center gap-2">
+                        <i class="fa-solid fa-users text-emerald-600"></i> Usuários cadastrados
+                    </h2>
+                    <div class="flex gap-2 w-full md:w-auto">
+                        <input type="text" id="buscaUsuario" placeholder="Buscar por nome ou matrícula..." class="bg-slate-50 border border-slate-300 rounded-lg px-3 py-2.5 text-xs w-full md:w-72 focus:ring-2 focus:ring-emerald-500 outline-none">
+                        <button type="button" id="btnAdicionarUsuario" onclick="abrirModal('modalUsuario')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-2.5 rounded-lg shadow-sm transition flex items-center justify-center gap-2 cursor-pointer text-xs whitespace-nowrap">
+                            <i class="fa-solid fa-plus"></i> Adicionar Usuário
+                        </button>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm text-left text-slate-600">
+                        <thead class="text-xs text-slate-700 uppercase bg-slate-100 border-b border-slate-200">
+                            <tr>
+                                <th class="px-4 py-3">Usuário</th>
+                                <th class="px-4 py-3">Matrícula</th>
+                                <th class="px-4 py-3">E-mail</th>
+                                <th class="px-4 py-3">Perfil</th>
+                                <th class="px-4 py-3">Curso / Polo</th>
+                                <th class="px-4 py-3 text-center">Status</th>
+                                <th class="px-4 py-3 text-right">Ação</th>
+                            </tr>
+                        </thead>
+                        <tbody id="listaUsuarios" class="divide-y divide-slate-200">
+                            <tr><td colspan="7" class="px-4 py-8 text-center text-slate-400">Carregando usuários...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ABA 3: Disciplinas -->
+        <section id="page-disciplinas" class="page-content space-y-6 hidden">
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden border-t-4 border-t-emerald-600 p-6 sm:p-8">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-5">
+                    <h2 class="text-xl font-bold text-slate-900 flex items-center gap-2">
+                        <i class="fa-solid fa-book text-emerald-600"></i> Disciplinas
+                    </h2>
+                    <div class="flex gap-2 w-full md:w-auto">
+                        <input type="text" id="buscaDisciplina" placeholder="Buscar disciplina..." class="bg-slate-50 border border-slate-300 rounded-lg px-3 py-2.5 text-xs w-full md:w-72 focus:ring-2 focus:ring-emerald-500 outline-none">
+                        <button type="button" id="btnAdicionarDisciplina" onclick="abrirModal('modalDisciplina')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-4 py-2.5 rounded-lg shadow-sm transition flex items-center justify-center gap-2 cursor-pointer text-xs whitespace-nowrap">
+                            <i class="fa-solid fa-plus"></i> Adicionar Disciplina
+                        </button>
+                    </div>
+                </div>
+                <p class="text-xs text-slate-500 -mt-2 mb-4">Só disciplinas <strong>ativas</strong> aparecem ao cadastrar novas vagas. Inativar não apaga nada: as vagas já cadastradas continuam valendo.</p>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm text-left text-slate-600">
+                        <thead class="text-xs text-slate-700 uppercase bg-slate-100 border-b border-slate-200">
+                            <tr>
+                                <th class="px-4 py-3">Disciplina</th>
+                                <th class="px-4 py-3 text-center">Status</th>
+                                <th class="px-4 py-3">Cadastrada em</th>
+                                <th class="px-4 py-3 text-right">Ação</th>
+                            </tr>
+                        </thead>
+                        <tbody id="listaDisciplinas" class="divide-y divide-slate-200">
+                            <tr><td colspan="4" class="px-4 py-8 text-center text-slate-400">Carregando disciplinas...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ABA 4: Sincronização de Notas -->
+        <section id="page-sincronizacao" class="page-content space-y-6 hidden">
+            <div
+                class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden border-t-4 border-t-emerald-600 p-6 sm:p-8">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
+                    <div>
+                        <h2 class="text-xl font-bold text-slate-900 flex items-center gap-2">
+                            <i class="fa-solid fa-rotate text-emerald-600"></i> 4. Sincronização de Notas
+                        </h2>
+                        <p class="text-sm text-slate-500 mt-1">Notas lançadas no banco de dados do portal.
+                        </p>
+                    </div>
+                    <button onclick="carregarNotas()"
+                        class="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-semibold px-4 py-2.5 rounded-lg transition flex items-center gap-2 cursor-pointer shadow-sm">
+                        <i class="fa-solid fa-rotate-right text-emerald-600"></i> Recarregar notas
+                    </button>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm text-left text-slate-600">
+                        <thead class="text-xs text-slate-700 uppercase bg-slate-100 border-b border-slate-200">
+                            <tr>
+                                <th class="px-4 py-3">Matrícula / Aluno</th>
+                                <th class="px-4 py-3">Avaliação</th>
+                                <th class="px-4 py-3">Polo</th>
+                                <th class="px-4 py-3 text-center">Status</th>
+                                <th class="px-4 py-3 text-center">Nota (0-10)</th>
+                                <th class="px-4 py-3 text-right">Ação</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-200">
+                            <tr><td colspan="6" class="px-4 py-6 text-center text-slate-400">Carregando notas...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ABA 5: Trilha de Auditoria -->
+        <section id="page-auditoria" class="page-content space-y-6 hidden">
+            <div
+                class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 sm:p-8 border-t-4 border-t-emerald-600">
+                <h2 class="text-xl font-bold text-slate-900 mb-1 flex items-center gap-2">
+                    <i class="fa-solid fa-shield-halved text-emerald-600"></i> 5. Trilha de Auditoria
+                </h2>
+                <p class="text-sm text-slate-500 mb-6">Painel de rastreabilidade para consultas de logs de segurança, IP
+                    e exclusões lógicas.</p>
+
+                <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-6 space-y-4 text-xs">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block font-semibold text-slate-600 mb-1.5">Filtrar por Usuário</label>
+                            <input type="text" id="filtroUsuario" placeholder="Nome ou ID..."
+                                class="w-full bg-white border border-slate-300 rounded-lg p-2.5 outline-none focus:ring-1 focus:ring-emerald-500">
+                        </div>
+                        <div>
+                            <label class="block font-semibold text-slate-600 mb-1.5">Filtrar por Ação</label>
+                            <select id="filtroAcao"
+                                class="w-full bg-white border border-slate-300 rounded-lg p-2.5 outline-none focus:ring-1 focus:ring-emerald-500">
+                                <option value="">Todas as Ações</option>
+                                <option value="CADASTRO_USUARIO">CADASTRO_USUARIO</option>
+                                <option value="LANÇAMENTO_NOTA">LANÇAMENTO_NOTA</option>
+                                <option value="SOFT_DELETE">SOFT_DELETE</option>
+                                <option value="ADICAO_VAGAS">ADICAO_VAGAS</option>
+                                <option value="REATIVACAO_USUARIO">REATIVACAO_USUARIO</option>
+                                <option value="ATUALIZACAO_FOTO">ATUALIZACAO_FOTO</option>
+                                <option value="ATUALIZACAO_POLO">ATUALIZACAO_POLO</option>
+                                <option value="REAGENDAMENTO_REALIZADO">REAGENDAMENTO_REALIZADO</option>
+                                <option value="CADASTRO_DISCIPLINA">CADASTRO_DISCIPLINA</option>
+                                <option value="INATIVACAO_DISCIPLINA">INATIVACAO_DISCIPLINA</option>
+                                <option value="REATIVACAO_DISCIPLINA">REATIVACAO_DISCIPLINA</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="flex justify-end">
+                        <button onclick="filtrarAuditoria()"
+                            class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-4 py-2 rounded-lg shadow-sm transition flex items-center gap-2 cursor-pointer">
+                            <i class="fa-solid fa-filter"></i> Filtrar Registros
+                        </button>
+                    </div>
+                </div>
+
+                <div id="lista-logs-auditoria" class="space-y-3 font-mono text-xs">
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+
+    <div id="modalVaga" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[92vh] overflow-y-auto p-6 sm:p-8 relative">
+            <button type="button" data-fechar-modal class="absolute top-5 right-5 text-slate-400 hover:text-slate-700 cursor-pointer" title="Fechar">
+                <i class="fa-solid fa-xmark text-xl"></i>
+            </button>
+            <h2 class="text-xl font-bold text-slate-900 flex items-center gap-2 pr-8">
+                <i class="fa-solid fa-circle-plus text-emerald-600"></i> Adição de Vagas
+            </h2>
+            <p class="text-sm text-slate-500 mt-1 mb-6">Preencha os dados abaixo para cadastrar novas vagas diretamente no banco de dados.</p>
+            <form id="formVaga" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1">Selecionar polo</label>
+                    <select id="vagaPolo" required class="w-full bg-slate-50 border border-slate-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none">
+                        <option>Polo Valença (Sede)</option>
+                        <option>Polo EaD Resende</option>
+                        <option>Polo Barra Mansa</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1">Curso (a prova aparece só para alunos deste curso)</label>
+                    <select id="vagaCurso" required class="w-full bg-slate-50 border border-slate-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"><option value="">Carregando cursos...</option></select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1">Disciplina / Avaliação</label>
+                    <select id="vagaDisciplina" required class="w-full bg-slate-50 border border-slate-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"><option value="">Carregando disciplinas...</option></select>
+                    <p class="text-[11px] text-slate-400 mt-1">Não encontrou? Cadastre na aba <strong>Disciplinas</strong>.</p>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div><label class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1">Data</label><input id="vagaData" required type="date" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"></div>
+                    <div><label class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1">Início da prova</label><select id="vagaHorarioInicio" required class="w-full bg-slate-50 border border-slate-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"></select></div>
+                    <div><label class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1">Fim da prova</label><select id="vagaHorarioFim" required class="w-full bg-slate-50 border border-slate-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"></select></div>
+                </div>
+                <div class="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                    <p class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1">Período de agendamento</p>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div><label class="block text-[11px] font-semibold uppercase text-slate-500 mb-1">Início</label><input id="vagaAgendInicio" required type="date" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none bg-white"></div>
+                        <div><label class="block text-[11px] font-semibold uppercase text-slate-500 mb-1">Fim</label><input id="vagaAgendFim" required type="date" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none bg-white"></div>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1">Limite de vagas</label>
+                    <input id="vagaLimite" required min="1" max="5000" type="number" placeholder="Ex: 40" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none">
+                </div>
+                <div class="flex gap-3 pt-2">
+                    <button type="button" data-fechar-modal class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold py-3 rounded-lg transition cursor-pointer">Cancelar</button>
+                    <button type="submit" class="flex-[2] bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-lg shadow-sm transition flex items-center justify-center gap-2 cursor-pointer"><i class="fa-solid fa-check"></i> Cadastrar Vagas no Banco</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <div id="modalUsuario" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[92vh] overflow-y-auto p-6 sm:p-8 relative">
+            <button type="button" data-fechar-modal class="absolute top-5 right-5 text-slate-400 hover:text-slate-700 cursor-pointer" title="Fechar">
+                <i class="fa-solid fa-xmark text-xl"></i>
+            </button>
+            <h2 class="text-xl font-bold text-slate-900 flex items-center gap-2 pr-8">
+                <i class="fa-solid fa-user-plus text-emerald-600"></i> Cadastro de Novos Usuários
+            </h2>
+            <p class="text-sm text-slate-500 mt-1 mb-6">Insira os dados do novo aluno, coordenador ou recepção do polo.</p>
+            <form id="formCadastrarUsuario" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1">Nome completo</label>
+                    <input type="text" id="novoNome" required placeholder="Ex: Maria Clara Souza" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none">
+                </div>
+                <div class="bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-lg p-3 text-xs">
+                    <i class="fa-solid fa-hashtag text-emerald-600"></i>
+                    A <strong>matrícula é gerada automaticamente</strong>: aluno <span class="font-mono">E00000</span>,
+                    coordenador <span class="font-mono">C00000</span>, recepção do polo <span class="font-mono">AT00000</span>.
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1">E-mail institucional / pessoal</label>
+                    <input type="email" id="novoEmail" required placeholder="Ex: aluno@unifaa.edu.br" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1">Tipo de perfil (RBAC)</label>
+                    <select id="novoTipo" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none">
+                        <option value="Aluno">Aluno</option>
+                        <option value="coordenador">Coordenador</option>
+                        <option value="Recepção do Polo">Recepção do Polo</option>
+                    </select>
+                </div>
+                <div id="blocoCurso">
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1">Curso</label>
+                    <input type="text" id="novoCurso" list="listaCursos" autocomplete="off" placeholder="Ex: Engenharia de Software" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none">
+                    <datalist id="listaCursos"></datalist>
+                </div>
+                <div id="blocoPolo" class="hidden">
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1">Polo da recepção</label>
+                    <select id="novoPolo" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"></select>
+                    <p class="text-[11px] text-slate-400 mt-1">A recepção só enxerga os agendamentos do polo escolhido.</p>
+                </div>
+                <div id="blocoFoto">
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1">Foto do aluno (opcional)</label>
+                    <div class="flex items-center gap-4">
+                        <img id="previewFoto" alt="Prévia da foto" class="hidden w-20 h-20 rounded-full object-cover border-2 border-emerald-500 shadow-sm">
+                        <div id="placeholderFoto" class="w-20 h-20 rounded-full bg-slate-100 border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400 shrink-0">
+                            <i class="fa-solid fa-camera"></i>
+                        </div>
+                        <input type="file" id="inputFoto" accept="image/jpeg,image/png,image/webp" class="text-xs text-slate-600 w-full">
+                    </div>
+                    <p class="text-[11px] text-slate-400 mt-1">A foto é reduzida automaticamente e aparece na tela da recepção.</p>
+                </div>
+                <div class="bg-amber-50 border border-amber-200 text-amber-900 rounded-lg p-3 text-xs">
+                    <i class="fa-solid fa-envelope text-amber-600"></i>
+                    Uma <strong>senha provisória aleatória</strong> será enviada ao e-mail informado.
+                </div>
+                <div class="flex gap-3 pt-2">
+                    <button type="button" data-fechar-modal class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold py-3 rounded-lg transition cursor-pointer">Cancelar</button>
+                    <button type="submit" class="flex-[2] bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-lg shadow-sm transition flex items-center justify-center gap-2 cursor-pointer"><i class="fa-solid fa-id-card"></i> Cadastrar e enviar senha</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <div id="modalDisciplina" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[92vh] overflow-y-auto p-6 sm:p-8 relative">
+            <button type="button" data-fechar-modal class="absolute top-5 right-5 text-slate-400 hover:text-slate-700 cursor-pointer" title="Fechar">
+                <i class="fa-solid fa-xmark text-xl"></i>
+            </button>
+            <h2 class="text-xl font-bold text-slate-900 flex items-center gap-2 pr-8">
+                <i class="fa-solid fa-book text-emerald-600"></i> Nova disciplina
+            </h2>
+            <p class="text-sm text-slate-500 mt-1 mb-6">Ela passa a aparecer na lista ao cadastrar vagas.</p>
+            <form id="formDisciplina" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1">Nome da disciplina / avaliação</label>
+                    <input type="text" id="novaDisciplina" required maxlength="100" placeholder="Ex: A2 - Machine Learning" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none">
+                </div>
+                <div class="flex gap-3 pt-2">
+                    <button type="button" data-fechar-modal class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold py-3 rounded-lg transition cursor-pointer">Cancelar</button>
+                    <button type="submit" class="flex-[2] bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-lg shadow-sm transition flex items-center justify-center gap-2 cursor-pointer"><i class="fa-solid fa-check"></i> Cadastrar disciplina</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <div id="modalDetalheVaga" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[92vh] overflow-y-auto p-6 sm:p-8 relative">
+            <button type="button" data-fechar-modal class="absolute top-5 right-5 text-slate-400 hover:text-slate-700 cursor-pointer" title="Fechar">
+                <i class="fa-solid fa-xmark text-xl"></i>
+            </button>
+            <h2 class="text-xl font-bold text-slate-900 flex items-center gap-2 pr-8">
+                <i class="fa-solid fa-calendar-check text-emerald-600"></i> Detalhes da vaga
+            </h2>
+            <p class="text-sm text-slate-500 mt-1 mb-6">Informações completas desta agenda de prova.</p>
+            <div id="conteudoDetalheVaga" class="space-y-4"></div>
+            <div class="flex pt-4">
+                <button type="button" data-fechar-modal class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold py-3 rounded-lg transition cursor-pointer">Fechar</button>
+            </div>
+        </div>
+    </div>
+
+    <input type="file" id="inputFotoUsuario" accept="image/jpeg,image/png,image/webp" class="hidden">
+
+    <footer class="bg-white border-t border-slate-200 py-4 mt-auto">
+        <div class="max-w-7xl mx-auto px-4 text-center text-xs text-slate-500">
+            &copy; 2026 Centro Universitário de Valença (UNIFAA) — Painel da Coordenação Acadêmica.
+        </div>
+    </footer>
+
+    <script src="js/common.js"></script>
+    <script src="js/coordenadorHome.js"></script>
+</body>
+
+</html>

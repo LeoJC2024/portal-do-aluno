@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login - Portal UNIFAA</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- SweetAlert2 CSS e JS -->
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <link rel="stylesheet" href="css/login.css">
+</head>
+<body>
+
+  <div class="login-card">
+    <div class="login-header">
+      <div class="brand-logos">
+        <span><i class="fa-solid fa-graduation-cap"></i> UNIFAA</span>
+      </div>
+      <div class="login-title">Portal do Aluno</div>
+    </div>
+
+    <form class="login-form" id="loginForm" onsubmit="realizarLogin(event)">
+      <div class="input-group">
+        <i class="fa-solid fa-user"></i>
+        <input type="text" id="matricula" class="input-field" placeholder="Matrícula / Usuário" required>
+      </div>
+
+      <div class="input-group">
+        <i class="fa-solid fa-lock"></i>
+        <input type="password" id="senha" class="input-field" placeholder="Senha" required>
+      </div>
+
+      <button type="submit" class="btn-submit">
+        <i class="fa-solid fa-right-to-bracket"></i> Acessar
+      </button>
+    </form>
+
+    <div class="login-footer">
+      <a href="#" class="login-link" id="btnEsqueciSenha">Esqueci minha senha</a>
+    </div>
+  </div>
+
+  <!-- Modal "Esqueci minha senha" com Verificação por Código -->
+  <div id="modalRecuperar" class="modal-overlay" style="display: none;">
+    <div class="modal-box">
+      <div class="modal-header-custom">
+        <h3><i class="fa-solid fa-key"></i> Redefinir Senha</h3>
+        <i class="fa-solid fa-xmark" id="fecharModal"></i>
+      </div>
+
+      <!-- PASSO 1: Solicitar Envio do Código -->
+      <div id="passo1Solicitar">
+        <p style="font-size: 13px; color: #64748b; margin: 0;">
+          Digite sua matrícula. Enviaremos um código de verificação para o seu e-mail cadastrado.
+        </p>
+
+        <form id="formSolicitarCodigo" onsubmit="enviarCodigoEmail(event)">
+          <div class="input-group" style="margin-top: 16px; margin-bottom: 16px;">
+            <i class="fa-solid fa-id-card"></i>
+            <input type="text" id="matriculaRecuperar" class="input-field" placeholder="Digite sua Matrícula" required>
+          </div>
+
+          <div class="modal-footer-actions">
+            <button type="button" class="btn-modal-cancel" id="btnCancelarModal">Cancelar</button>
+            <button type="submit" class="btn-modal-submit" id="btnEnviarCodigo">Enviar Código</button>
+          </div>
+        </form>
+        <p style="text-align:center; margin-top:14px; font-size:13px;">
+          <a href="#" class="login-link" id="btnJaTenhoSenha">Já tenho a senha provisória (primeiro acesso)</a>
+        </p>
+      </div>
+
+      <!-- PASSO 2: Validar Código e Cadastrar Nova Senha -->
+      <div id="passo2Confirmar" style="display: none;">
+        <p style="font-size: 13px; color: #64748b; margin: 0;">
+          Informe o código enviado ao seu e-mail (ou a senha provisória do primeiro acesso) e a nova senha desejada.
+        </p>
+
+        <p id="resumoMatricula" style="font-weight:600; color:#0a7a5f; margin-top:6px;"></p>
+
+        <form id="formConfirmarCodigo" onsubmit="enviarRecuperacaoSenha(event)">
+          <div class="input-group" style="margin-top: 12px; margin-bottom: 12px;">
+            <i class="fa-solid fa-shield-halved"></i>
+            <input type="text" id="codigoVerificacao" class="input-field" placeholder="Código ou senha provisória" maxlength="64" autocomplete="off" style="letter-spacing: normal; font-size: 14px;" required>
+          </div>
+
+          <div class="input-group" style="margin-bottom: 16px;">
+            <i class="fa-solid fa-lock"></i>
+            <input type="password" id="novaSenhaRecuperar" class="input-field" placeholder="Nova senha (mín. 8 caracteres)" minlength="8" required>
+          </div>
+
+          <div class="modal-footer-actions">
+            <button type="button" class="btn-modal-cancel" id="btnVoltarPasso1">Voltar</button>
+            <button type="submit" class="btn-modal-submit">Redefinir Senha</button>
+          </div>
+        </form>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="js/common.js"></script>
+  <script src="js/login.js"></script>
+</body>
+</html>

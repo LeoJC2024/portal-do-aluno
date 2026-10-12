@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trilha de Auditoria e Infraestrutura - UNIFAA</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="css/auditHome.css">
+    <!-- SweetAlert2 CSS e JS -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+
+<body data-sistema="System Audit &amp; Database Logs" class="bg-slate-900 font-sans text-slate-100 antialiased min-h-screen flex flex-col">
+
+    <!-- Header Técnico / Infraestrutura -->
+    <header class="bg-slate-800 border-b border-slate-700 shadow-md sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="bg-slate-700 p-2 rounded-lg text-emerald-400 font-mono font-bold">
+                    &gt;_
+                </div>
+                <div>
+                    <span class="text-xl font-bold tracking-tight text-white">System Audit &amp; Database Logs</span>
+                    <span class="text-xs bg-emerald-900 text-emerald-300 px-2 py-0.5 rounded ml-2 font-mono">PostgreSQL
+                        Direct Engine</span>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-4">
+                <div class="hidden sm:flex items-center space-x-2 text-xs font-mono text-slate-400">
+                    <span id="dbStatusDot" class="w-3 h-3 rounded-full bg-slate-500 inline-block animate-pulse"></span>
+                    <span id="dbStatusTexto">DB Status: verificando...</span>
+                </div>
+
+                <!-- Perfil e Botão Sair -->
+                <div class="relative">
+                    <div class="flex items-center space-x-3 cursor-pointer p-1.5 rounded-lg hover:bg-slate-700/50 transition"
+                        onclick="toggleMenu(event)">
+                        <div class="text-right hidden sm:block">
+                            <p class="text-xs font-mono font-semibold text-slate-200 uppercase" id="userName">Admin
+                                Infra</p>
+                            <p class="text-[10px] text-slate-400 font-mono flex items-center gap-1 justify-end">
+                                Root / DB Master <i class="fa-solid fa-chevron-down text-[8px]"></i>
+                            </p>
+                        </div>
+                        <div class="w-9 h-9 rounded-full bg-slate-700 flex items-center justify-center font-mono font-bold text-emerald-400 border border-slate-600 shadow-sm"
+                            id="userAvatar">
+                            DB
+                        </div>
+                    </div>
+
+                    <div id="userDropdown"
+                        class="absolute right-0 top-full mt-2 w-48 bg-slate-800 rounded-xl shadow-xl border border-slate-700 hidden overflow-hidden z-50 text-slate-200">
+                        <div onclick="sairDaConta()"
+                            class="px-4 py-3 text-xs font-mono font-semibold text-rose-400 hover:bg-rose-950/50 flex items-center justify-between cursor-pointer transition">
+                            <span>Sair da Conta</span>
+                            <span class="text-sm">⎋</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full">
+
+        <!-- Estatísticas Rápida de Auditoria (Com IDs adicionados) -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div class="bg-slate-800 border border-slate-700 p-5 rounded-xl">
+                <p class="text-slate-400 text-xs font-mono uppercase">Total Transações Logadas</p>
+                <p class="text-3xl font-bold text-white mt-1" id="statTotalTransacoes">--</p>
+            </div>
+            <div class="bg-slate-800 border border-slate-700 p-5 rounded-xl">
+                <p class="text-slate-400 text-xs font-mono uppercase">Registros Inativos (Soft Delete)</p>
+                <p class="text-3xl font-bold text-amber-400 mt-1" id="statRegistrosInativos">--</p>
+            </div>
+            <div class="bg-slate-800 border border-slate-700 p-5 rounded-xl">
+                <p class="text-slate-400 text-xs font-mono uppercase">Violações de Trava 24h Bloqueadas</p>
+                <p class="text-3xl font-bold text-rose-400 mt-1" id="statViolacoes">--</p>
+            </div>
+        </div>
+
+        <!-- Tabela Imutável de Auditoria (Audit Logs) -->
+        <div class="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden shadow-xl">
+            <div class="p-4 border-b border-slate-700 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <h2 class="text-base font-bold text-white font-mono flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-emerald-400" fill="none"
+                        viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Tabela: AUDITORIA_LOGS (Imutável)
+                </h2>
+
+                <div class="flex gap-2 font-mono text-xs">
+                    <input type="text" id="searchInput" placeholder="Filtrar por IP, Usuário ou Ação..."
+                        class="bg-slate-900 border border-slate-600 rounded px-3 py-1.5 text-slate-200 focus:outline-none focus:border-emerald-500 w-full md:w-72">
+                </div>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-xs font-mono text-left text-slate-300" id="auditTable">
+                    <thead class="text-slate-400 uppercase bg-slate-900/60 border-b border-slate-700">
+                        <tr>
+                            <th class="px-4 py-3">Timestamp (UTC)</th>
+                            <th class="px-4 py-3">Usuário</th>
+                            <th class="px-4 py-3">Ação</th>
+                            <th class="px-4 py-3">Status do Registro</th>
+                            <th class="px-4 py-3">Endereço IP</th>
+                            <th class="px-4 py-3">Detalhes do Evento</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-700">
+                        <!-- Os dados serão injetados dinamicamente via JavaScript do banco -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <footer class="bg-slate-800 border-t border-slate-700 py-4 mt-auto">
+        <div class="max-w-7xl mx-auto px-4 text-center text-xs font-mono text-slate-500">
+            &copy; 2026 UNIFAA — Data Engine &amp; Audit Log Service.
+        </div>
+    </footer>
+
+    <script src="js/common.js"></script>
+    <script src="js/auditHome.js"></script>
+</body>
+
+</html>

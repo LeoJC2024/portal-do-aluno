@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Portal do Aluno - UNIFAA</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- SweetAlert2 CSS e JS -->
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+
+<body data-sistema="Portal do Aluno" class="bg-slate-100 text-slate-800 antialiased min-h-screen flex flex-col">
+
+  <!-- HEADER / NAVBAR SUPERIOR PADRONIZADO -->
+  <header
+    class="bg-gradient-to-r from-teal-700 via-teal-600 to-cyan-700 text-white shadow-md border-b-4 border-cyan-800 sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-4">
+
+      <!-- Logo e Título -->
+      <div class="flex items-center space-x-3 shrink-0">
+        <div
+          class="bg-teal-900/60 px-3 py-1.5 rounded-xl border border-teal-500/40 flex items-center justify-center shadow-inner">
+          <svg class="h-8 w-auto text-teal-300" viewBox="0 0 150 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M18 10L3 18L18 26L33 18L18 10Z" fill="currentColor" />
+            <path d="M8 22V27C8 29.5 12.5 31.5 18 31.5C23.5 31.5 28 29.5 28 27V22" stroke="currentColor"
+              stroke-width="2" stroke-linecap="round" />
+            <path d="M30 19.5V28" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+            <text x="40" y="27" fill="#FFFFFF" font-family="Arial, sans-serif" font-weight="900" font-size="20"
+              letter-spacing="1">UNIFAA</text>
+          </svg>
+        </div>
+        <div class="h-8 w-px bg-white/20 hidden sm:block"></div>
+        <div class="hidden lg:flex items-center gap-2">
+          <span class="text-lg font-bold tracking-tight text-teal-50">Portal do Aluno</span>
+          <span
+            class="bg-cyan-900/60 text-cyan-200 text-xs font-mono font-semibold px-2.5 py-0.5 rounded-full border border-cyan-700/50">ESTUDANTE</span>
+        </div>
+      </div>
+
+      <!-- PERFIL COM MENU SUSPENSO (Devidamente alinhado dentro do Header) -->
+      <div class="relative shrink-0">
+        <div class="flex items-center space-x-3 cursor-pointer p-1.5 rounded-lg hover:bg-teal-800/40 transition"
+          onclick="toggleMenu(event)">
+          <div class="w-11 h-11 rounded-full bg-teal-800 flex items-center justify-center font-bold text-white border-2 border-teal-400 shadow-sm overflow-hidden shrink-0"
+            id="userAvatar">L</div>
+          <div class="text-left hidden sm:block">
+            <p class="text-sm font-semibold text-teal-50 uppercase" id="userName">Carregando...</p>
+            <p class="text-xs text-teal-100 font-mono" id="userMatricula"></p>
+            <p class="text-xs text-teal-200 flex items-center gap-1" id="userCourse">
+              Carregando... <i class="fa-solid fa-chevron-down text-[9px]"></i>
+            </p>
+          </div>
+        </div>
+
+        <!-- Menu suspenso -->
+        <div id="userDropdown"
+          class="absolute right-0 top-full mt-2 w-48 bg-white rounded-xl shadow-xl border border-slate-200 hidden overflow-hidden z-50 text-slate-800">
+          <div onclick="sairDaConta()"
+            class="px-4 py-3 text-xs font-semibold text-red-600 hover:bg-red-50 flex items-center justify-between cursor-pointer transition">
+            <span>Sair</span>
+            <i class="fa-solid fa-right-from-bracket"></i>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full space-y-6">
+
+    <!-- WELCOME CARD -->
+    <div
+      class="bg-white p-6 sm:p-8 rounded-2xl shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-t-4 border-t-teal-600">
+      <div>
+        <h1 class="text-xl sm:text-2xl font-bold text-slate-900" id="welcomeGreeting">Olá, <span
+            id="welcomeName">Carregando...</span>!</h1>
+        <p class="text-slate-600 text-sm mt-1">Acompanhe seus agendamentos de provas, notas e avisos institucionais.</p>
+      </div>
+    </div>
+
+    <!-- METRICS GRID -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+      <!-- Card de Avaliações Pendentes -->
+      <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between">
+        <div>
+          <div class="text-xs font-bold uppercase tracking-wider text-slate-500">Avaliações Pendentes</div>
+          <div class="text-3xl font-extrabold text-slate-900 mt-1" id="contadorTotalPendentes">0</div>
+          <div class="text-xs text-amber-600 font-medium mt-1 flex items-center gap-1" id="contadorDisponiveisAgendar">
+            <i class="fa-regular fa-clock"></i> 0 disponíveis para agendar</div>
+        </div>
+        <div class="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-lg shadow-sm">
+          <i class="fa-solid fa-file-pen"></i>
+        </div>
+      </div>
+
+      <!-- Card de Resultados Lançados -->
+      <div
+        class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between cursor-pointer hover:border-teal-500 transition shadow-sm"
+        id="cardResultados" onclick="abrirResultados()" title="Clique para ver os resultados">
+        <div>
+          <div class="text-xs font-bold uppercase tracking-wider text-slate-500">Resultados Lançados</div>
+          <div class="text-3xl font-extrabold text-slate-900 mt-1" id="contadorResultadosLancados">0</div>
+          <div class="text-xs text-teal-600 font-medium mt-1 flex items-center gap-1"><i
+              class="fa-solid fa-check-double"></i> Clique para ver</div>
+        </div>
+        <div class="w-12 h-12 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center text-lg shadow-sm">
+          <i class="fa-solid fa-chart-column"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- CONTENT GRID -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+      <!-- Minhas Avaliações e Agendamentos -->
+      <div class="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+        <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+          <i class="fa-solid fa-calendar-check text-teal-600"></i> Minhas Avaliações e Agendamentos
+        </h2>
+        <div class="space-y-3" id="listaVagasAluno">
+          <!-- Conteúdo dinâmico via JS -->
+        </div>
+      </div>
+
+      <!-- Avisos da Coordenação -->
+      <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
+        <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
+          <i class="fa-solid fa-bullhorn text-teal-600"></i> Avisos da Coordenação
+        </h2>
+        <div class="space-y-4 text-xs">
+          <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
+            <div class="text-teal-700 font-semibold mb-1">25 de Agosto</div>
+            <div class="text-slate-700">Liberado o calendário de provas presenciais.</div>
+          </div>
+          <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
+            <div class="text-teal-700 font-semibold mb-1">20 de Agosto</div>
+            <div class="text-slate-700">Manutenção programada no ambiente virtual.</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- MODAL DE RESULTADOS -->
+  <div id="modalResultados"
+    class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl overflow-hidden">
+      <div class="bg-teal-700 text-white px-6 py-4 flex items-center justify-between">
+        <h3 class="font-bold text-lg">Meus Resultados Lançados</h3>
+        <button class="text-teal-200 hover:text-white transition cursor-pointer" onclick="fecharModalResultados()"><i
+            class="fa-solid fa-xmark text-lg"></i></button>
+      </div>
+      <div class="p-6 max-h-[450px] overflow-y-auto">
+        <div id="listaResultadosModal">
+          <p class="text-center text-slate-500 py-6">A carregar resultados...</p>
+        </div>
+      </div>
+      <div class="bg-slate-50 px-6 py-3 border-t border-slate-200 flex justify-end">
+        <button
+          class="bg-slate-200 hover:bg-slate-300 text-slate-800 font-medium px-4 py-2 rounded-xl text-xs transition cursor-pointer"
+          onclick="fecharModalResultados()">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL DE AGENDAMENTO -->
+  <div id="modalAgendamento"
+    class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden">
+      <div class="bg-teal-700 text-white px-6 py-4 flex items-center justify-between">
+        <h3 class="font-bold text-lg" id="tituloModalAgendamento">Agendar avaliação</h3>
+        <button class="text-teal-200 hover:text-white transition cursor-pointer" onclick="fecharModal()"><i
+            class="fa-solid fa-xmark text-lg"></i></button>
+      </div>
+      <div class="p-6 space-y-4">
+        <p id="avisoReagendar" class="hidden text-xs bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-3">
+          <i class="fa-solid fa-circle-info"></i> Você está trocando o horário desta avaliação. O reagendamento só é permitido
+          com mais de 24 horas de antecedência da prova atual. O horário antigo será liberado.
+        </p>
+        <div>
+          <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-2">AGENDA:</label>
+          <select id="horarioSelect"
+            class="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-sm focus:ring-2 focus:ring-teal-500 outline-none">
+            <option value="">Selecione...</option>
+          </select>
+        </div>
+      </div>
+      <div class="bg-slate-50 px-6 py-3 border-t border-slate-200 flex justify-end gap-2">
+        <button
+          class="bg-slate-200 hover:bg-slate-300 text-slate-800 font-medium px-4 py-2 rounded-xl text-xs transition cursor-pointer"
+          onclick="fecharModal()">Cancelar</button>
+        <button
+          class="bg-teal-600 hover:bg-teal-700 text-white font-medium px-4 py-2 rounded-xl text-xs transition cursor-pointer"
+          onclick="confirmarAgendamento()">Confirmar Horário</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <footer class="bg-white border-t border-slate-200 py-4 mt-auto">
+    <div class="max-w-7xl mx-auto px-4 text-center text-xs text-slate-500">
+      &copy; 2026 Centro Universitário de Valença (UNIFAA) — Portal do Aluno.
+    </div>
+  </footer>
+
+  <script src="js/common.js"></script>
+  <script src="js/alunoHome.js"></script>
+</body>
+
+</html>

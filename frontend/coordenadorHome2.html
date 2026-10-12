@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel da Coordenação - UNIFAA</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- SweetAlert2 CSS e JS -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+
+<body data-sistema="Gestão Acadêmica" class="bg-slate-100 text-slate-800 antialiased min-h-screen flex flex-col">
+
+    <!-- HEADER / NAVBAR SUPERIOR PADRONIZADO -->
+    <header class="bg-emerald-900 text-white shadow-md border-b-4 border-emerald-600 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-2 sm:px-4 lg:px-6 h-20 flex items-center justify-between gap-2">
+
+            <div class="flex items-center space-x-2 shrink-0">
+                <div
+                    class="bg-emerald-800 px-3 py-1.5 rounded-xl border border-emerald-700 flex items-center justify-center shadow-inner">
+                    <svg class="h-8 w-auto text-emerald-400" viewBox="0 0 150 40" fill="none"
+                        xmlns="http://www.w3.org/2000/svg">
+                        <path d="M18 10L3 18L18 26L33 18L18 10Z" fill="currentColor" />
+                        <path d="M8 22V27C8 29.5 12.5 31.5 18 31.5C23.5 31.5 28 29.5 28 27V22" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" />
+                        <path d="M30 19.5V28" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                        <text x="40" y="27" fill="#FFFFFF" font-family="Arial, sans-serif" font-weight="900"
+                            font-size="20" letter-spacing="1">UNIFAA</text>
+                    </svg>
+                </div>
+                <div class="h-8 w-px bg-emerald-700 hidden sm:block"></div>
+                <div class="hidden lg:flex items-center gap-2">
+                    <span class="text-lg font-bold tracking-tight text-emerald-50">Gestão Acadêmica</span>
+                </div>
+            </div>
+
+            <nav class="flex space-x-1 sm:space-x-2 text-xs sm:text-sm font-medium items-center">
+                <button onclick="switchTab('oferta', this)" id="btn-oferta"
+                    class="tab-btn px-2 sm:px-3 py-2 rounded-lg transition font-bold bg-emerald-800 text-white border border-emerald-700 shadow-sm cursor-pointer whitespace-nowrap flex items-center gap-1 sm:gap-2">
+                    <i class="fa-solid fa-circle-plus"></i> <span class="hidden md:inline">Adição de Vagas</span>
+                </button>
+                <button onclick="switchTab('usuarios', this)" id="btn-usuarios"
+                    class="tab-btn px-2 sm:px-3 py-2 rounded-lg transition text-emerald-200 hover:text-white hover:bg-emerald-800/50 cursor-pointer whitespace-nowrap flex items-center gap-1 sm:gap-2">
+                    <i class="fa-solid fa-user-plus"></i> <span class="hidden md:inline">2. </span>Cadastro de Usuários
+                </button>
+                <button onclick="switchTab('sincronizacao', this)" id="btn-sincronizacao"
+                    class="tab-btn px-2 sm:px-3 py-2 rounded-lg transition text-emerald-200 hover:text-white hover:bg-emerald-800/50 cursor-pointer whitespace-nowrap flex items-center gap-1 sm:gap-2">
+                    <i class="fa-solid fa-rotate"></i> <span class="hidden md:inline">3. </span>Sincronização de Notas
+                </button>
+                <button onclick="switchTab('auditoria', this)" id="btn-auditoria"
+                    class="tab-btn px-2 sm:px-3 py-2 rounded-lg transition text-emerald-200 hover:text-white hover:bg-emerald-800/50 cursor-pointer whitespace-nowrap flex items-center gap-1 sm:gap-2">
+                    <i class="fa-solid fa-shield-halved"></i> <span class="hidden md:inline">4. </span>Trilha de
+                    Auditoria
+                </button>
+            </nav>
+
+            <div class="relative shrink-0">
+                <div class="flex items-center space-x-3 cursor-pointer p-1.5 rounded-lg hover:bg-emerald-800/50 transition"
+                    onclick="toggleMenu(event)">
+                    <div class="text-right hidden sm:block">
+                        <p class="text-sm font-semibold text-emerald-100 uppercase" id="userName">Prof. Coordenador</p>
+                        <p class="text-xs text-emerald-300 flex items-center gap-1 justify-end" id="userCourse">
+                            Coordenador <i class="fa-solid fa-chevron-down text-[9px]"></i>
+                        </p>
+                    </div>
+                    <div class="w-10 h-10 rounded-full bg-emerald-700 flex items-center justify-center font-bold text-white border-2 border-emerald-500 shadow-sm"
+                        id="userAvatar">
+                        C
+                    </div>
+                </div>
+
+                <div id="userDropdown"
+                    class="absolute right-0 top-full mt-2 w-48 bg-white rounded-xl shadow-xl border border-slate-200 hidden overflow-hidden z-50 text-slate-800">
+                    <div onclick="sairDaConta()"
+                        class="px-4 py-3 text-xs font-semibold text-red-600 hover:bg-red-50 flex items-center justify-between cursor-pointer transition">
+                        <span>Sair da Conta</span>
+                        <i class="fa-solid fa-right-from-bracket"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full space-y-6">
+
+        <div
+            class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+            <div>
+                <h1 class="text-xl sm:text-2xl font-bold text-slate-900">Painel da Coordenação Acadêmica</h1>
+                <p class="text-slate-600 text-sm mt-1">Gerencie a adição de vagas, novos cadastros institucionais, notas
+                    e logs do sistema.</p>
+                <div class="mt-3 flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-full bg-emerald-700 text-white flex items-center justify-center font-bold border-2 border-emerald-500"
+                        id="tituloAvatar">C</div>
+                    <div>
+                        <p class="text-sm font-semibold text-slate-900" id="tituloNome"></p>
+                        <p class="text-xs text-slate-500 font-mono" id="tituloMatricula"></p>
+                    </div>
+                </div>
+            </div>
+            <div
+                class="bg-emerald-50 border-l-4 border-emerald-600 p-3 rounded-r-xl text-xs text-emerald-900 flex items-center gap-2 max-w-md shadow-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-emerald-600 shrink-0" fill="none"
+                    viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+                <span><strong>Segurança & RBAC:</strong> Operações validadas por nível de acesso autenticado.</span>
+            </div>
+        </div>
+
+        <!-- ABA 1: Adição de Vagas & Listagem em Tabela -->
+        <section id="page-oferta" class="page-content space-y-6">
+            <div
+                class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden border-t-4 border-t-emerald-600 p-6 sm:p-8 w-full">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                    <h3 class="text-xl font-bold text-slate-900 flex items-center gap-2">
+                        <i class="fa-solid fa-circle-plus text-emerald-600"></i> Adição de Vagas e Provas
+                    </h3>
+                    <div class="flex items-center gap-3 w-full sm:w-auto">
+                        <input type="text" id="buscaVaga" placeholder="Buscar por disciplina ou polo..."
+                            class="bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-xs w-full sm:w-72 focus:ring-2 focus:ring-emerald-500 outline-none">
+                        <button onclick="abrirModalVaga()"
+                            class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-4 py-2.5 rounded-lg shadow-sm transition flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap w-full sm:w-auto">
+                            <i class="fa-solid fa-plus"></i> Adicionar Vagas
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Tabela de Vagas Adicionadas -->
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm text-left text-slate-600">
+                        <thead class="text-xs text-slate-700 uppercase bg-slate-100 border-b border-slate-200">
+                            <tr>
+                                <th class="px-4 py-3">Polo / Curso</th>
+                                <th class="px-4 py-3">Disciplina / Avaliação</th>
+                                <th class="px-4 py-3">Data e Horário</th>
+                                <th class="px-4 py-3">Período de Agendamento</th>
+                                <th class="px-4 py-3 text-center">Ação</th>
+                            </tr>
+                        </thead>
+                        <tbody id="listaVagasTabela" class="divide-y divide-slate-200">
+                            <tr>
+                                <td colspan="5" class="px-4 py-6 text-center text-slate-400">Carregando vagas da
+                                    auditoria...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- MODAL DE CADASTRO DE VAGAS -->
+            <div id="modalCadastrarVaga"
+                class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4 overflow-y-auto">
+                <div
+                    class="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-2xl my-auto max-h-[90vh] overflow-y-auto p-6 sm:p-8 relative">
+                    <button onclick="fecharModalVaga()"
+                        class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-lg p-2 cursor-pointer">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+
+                    <h2 class="text-xl font-bold text-slate-900 mb-1 flex items-center gap-2">
+                        <i class="fa-solid fa-circle-plus text-emerald-600"></i> Adição de Vagas
+                    </h2>
+                    <p class="text-sm text-slate-500 mb-6">Preencha os dados abaixo para cadastrar novas vagas
+                        diretamente no banco de dados.</p>
+
+                    <form id="formVaga" class="space-y-4">
+                        <div>
+                            <label
+                                class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1">Selecionar
+                                Polo</label>
+                            <select id="vagaPolo" required
+                                class="w-full bg-slate-50 border border-slate-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none">
+                                <option>Polo Valença (Sede)</option>
+                                <option>Polo EaD Resende</option>
+                                <option>Polo Barra Mansa</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label
+                                class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1">Curso
+                                (a prova aparece só para alunos deste curso)</label>
+                            <select id="vagaCurso" required
+                                class="w-full bg-slate-50 border border-slate-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none">
+                                <option value="">Carregando cursos...</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label
+                                class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1">Disciplina
+                                / Avaliação</label>
+                            <input id="vagaDisciplina" required type="text" placeholder="Ex: A2 - Machine Learning"
+                                class="w-full bg-slate-50 border border-slate-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none">
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div>
+                                <label
+                                    class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1">Data</label>
+                                <input id="vagaData" required type="date"
+                                    class="w-full bg-slate-50 border border-slate-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none">
+                            </div>
+                            <div>
+                                <label
+                                    class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1">Início
+                                    da prova</label>
+                                <select id="vagaHorarioInicio" required
+                                    class="w-full bg-slate-50 border border-slate-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none">
+                                    <option value="">Selecione...</option>
+                                    <option value="07:00">07:00</option>
+                                    <option value="07:30">07:30</option>
+                                    <option value="08:00">08:00</option>
+                                    <option value="08:30">08:30</option>
+                                    <option value="09:00">09:00</option>
+                                    <option value="09:30">09:30</option>
+                                    <option value="10:00">10:00</option>
+                                    <option value="10:30">10:30</option>
+                                    <option value="11:00">11:00</option>
+                                    <option value="11:30">11:30</option>
+                                    <option value="12:00">12:00</option>
+                                    <option value="12:30">12:30</option>
+                                    <option value="13:00">13:00</option>
+                                    <option value="13:30">13:30</option>
+                                    <option value="14:00">14:00</option>
+                                    <option value="14:30">14:30</option>
+                                    <option value="15:00">15:00</option>
+                                    <option value="15:30">15:30</option>
+                                    <option value="16:00">16:00</option>
+                                    <option value="16:30">16:30</option>
+                                    <option value="17:00">17:00</option>
+                                    <option value="17:30">17:30</option>
+                                    <option value="18:00">18:00</option>
+                                    <option value="18:30">18:30</option>
+                                    <option value="19:00">19:00</option>
+                                    <option value="19:30">19:30</option>
+                                    <option value="20:00">20:00</option>
+                                    <option value="20:30">20:30</option>
+                                    <option value="21:00">21:00</option>
+                                    <option value="21:30">21:30</option>
+                                    <option value="22:00">22:00</option>
+                                    <option value="22:30">22:30</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label
+                                    class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1">Fim
+                                    da prova</label>
+                                <select id="vagaHorarioFim" required
+                                    class="w-full bg-slate-50 border border-slate-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none">
+                                    <option value="">Selecione...</option>
+                                    <option value="07:00">07:00</option>
+                                    <option value="07:30">07:30</option>
+                                    <option value="08:00">08:00</option>
+                                    <option value="08:30">08:30</option>
+                                    <option value="09:00">09:00</option>
+                                    <option value="09:30">09:30</option>
+                                    <option value="10:00">10:00</option>
+                                    <option value="10:30">10:30</option>
+                                    <option value="11:00">11:00</option>
+                                    <option value="11:30">11:30</option>
+                                    <option value="12:00">12:00</option>
+                                    <option value="12:30">12:30</option>
+                                    <option value="13:00">13:00</option>
+                                    <option value="13:30">13:30</option>
+                                    <option value="14:00">14:00</option>
+                                    <option value="14:30">14:30</option>
+                                    <option value="15:00">15:00</option>
+                                    <option value="15:30">15:30</option>
+                                    <option value="16:00">16:00</option>
+                                    <option value="16:30">16:30</option>
+                                    <option value="17:00">17:00</option>
+                                    <option value="17:30">17:30</option>
+                                    <option value="18:00">18:00</option>
+                                    <option value="18:30">18:30</option>
+                                    <option value="19:00">19:00</option>
+                                    <option value="19:30">19:30</option>
+                                    <option value="20:00">20:00</option>
+                                    <option value="20:30">20:30</option>
+                                    <option value="21:00">21:00</option>
+                                    <option value="21:30">21:30</option>
+                                    <option value="22:00">22:00</option>
+                                    <option value="22:30">22:30</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Período de Agendamento na Mesma Linha -->
+                        <div>
+                            <label
+                                class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1.5">Período
+                                de Agendamento</label>
+                            <div
+                                class="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                                <div>
+                                    <label
+                                        class="block text-[11px] font-medium text-slate-500 uppercase mb-1">Início</label>
+                                    <input id="vagaAgendInicio" required type="date"
+                                        class="w-full bg-white border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-emerald-500 outline-none">
+                                </div>
+                                <div>
+                                    <label
+                                        class="block text-[11px] font-medium text-slate-500 uppercase mb-1">Fim</label>
+                                    <input id="vagaAgendFim" required type="date"
+                                        class="w-full bg-white border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-emerald-500 outline-none">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label
+                                class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1">Limite
+                                de Vagas</label>
+                            <input id="vagaLimite" required min="1" max="5000" type="number" placeholder="Ex: 40"
+                                class="w-full bg-slate-50 border border-slate-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none">
+                        </div>
+                        <div class="flex gap-3 pt-2">
+                            <button type="button" onclick="fecharModalVaga()"
+                                class="w-1/3 bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium py-3 rounded-lg shadow-sm transition cursor-pointer">
+                                Cancelar
+                            </button>
+                            <button type="submit"
+                                class="w-2/3 bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-3 rounded-lg shadow-sm transition flex items-center justify-center gap-2 cursor-pointer">
+                                <i class="fa-solid fa-check"></i> Cadastrar Vagas no Banco
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </section>
+
+        <!-- ABA 2: Usuários Cadastrados -->
+        <section id="page-usuarios" class="page-content space-y-6 hidden">
+            <div
+                class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden border-t-4 border-t-emerald-600 p-6 sm:p-8 w-full">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                    <h3 class="text-xl font-bold text-slate-900 flex items-center gap-2">
+                        <i class="fa-solid fa-users text-emerald-600"></i> Usuários cadastrados
+                    </h3>
+                    <div class="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
+                        <input type="text" id="buscaUsuario" placeholder="Buscar por nome ou matrícula..."
+                            class="bg-slate-50 border border-slate-300 rounded-lg p-2.5 text-xs w-full sm:w-72 focus:ring-2 focus:ring-emerald-500 outline-none">
+                        <button onclick="abrirModalUsuario()"
+                            class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-4 py-2.5 rounded-lg shadow-sm transition flex items-center justify-center gap-2 cursor-pointer whitespace-nowrap w-full sm:w-auto">
+                            <i class="fa-solid fa-user-plus"></i> Adicionar Usuário
+                        </button>
+                    </div>
+                </div>
+                <div id="listaUsuarios" class="space-y-2 max-h-[500px] overflow-y-auto pr-1">
+                    <p class="text-center text-slate-400 text-sm py-4">Carregando usuários...</p>
+                </div>
+            </div>
+
+            <!-- MODAL DE CADASTRO DE USUÁRIOS -->
+            <div id="modalCadastrarUsuario"
+                class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+                <div
+                    class="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 sm:p-8 relative">
+                    <button onclick="fecharModalUsuario()"
+                        class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-lg p-2 cursor-pointer">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+
+                    <h2 class="text-xl font-bold text-slate-900 mb-1 flex items-center gap-2">
+                        <i class="fa-solid fa-user-plus text-emerald-600"></i> Cadastro de Novos Usuários
+                    </h2>
+                    <p class="text-sm text-slate-500 mb-6">Insira os dados do novo aluno, coordenador ou recepção do
+                        polo.</p>
+
+                    <form id="formCadastrarUsuario" class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1">Nome
+                                Completo</label>
+                            <input type="text" id="novoNome" required placeholder="Ex: Maria Clara Souza"
+                                class="w-full bg-slate-50 border border-slate-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none">
+                        </div>
+                        <div class="bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-lg p-3 text-xs">
+                            <i class="fa-solid fa-hashtag text-emerald-600"></i>
+                            A <strong>matrícula é gerada automaticamente</strong>: aluno <span
+                                class="font-mono">E00000</span>, coordenador <span class="font-mono">C00000</span>,
+                            recepção do polo <span class="font-mono">AT00000</span>.
+                        </div>
+                        <div>
+                            <label
+                                class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1">E-mail
+                                Institucional / Pessoal</label>
+                            <input type="email" id="novoEmail" required placeholder="Ex: aluno@unifaa.edu.br"
+                                class="w-full bg-slate-50 border border-slate-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1">Tipo
+                                de Perfil (RBAC)</label>
+                            <select id="novoTipo" onchange="alternarCamposPerfil()"
+                                class="w-full bg-slate-50 border border-slate-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none">
+                                <option value="Aluno">Aluno</option>
+                                <option value="coordenador">Coordenador</option>
+                                <option value="Recepção do Polo">Recepção do Polo</option>
+                            </select>
+                        </div>
+
+                        <div id="blocoCurso">
+                            <label
+                                class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1">Curso</label>
+                            <input type="text" id="novoCurso" list="listaCursos" autocomplete="off"
+                                placeholder="Ex: Engenharia de Software"
+                                class="w-full bg-slate-50 border border-slate-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none">
+                        </div>
+
+                        <div id="blocoPolo" class="hidden">
+                            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1">Polo
+                                da recepção</label>
+                            <select id="novoPolo"
+                                class="w-full bg-slate-50 border border-slate-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none">
+                                <option>Polo Valença (Sede)</option>
+                                <option>Polo EaD Resende</option>
+                                <option>Polo Barra Mansa</option>
+                            </select>
+                            <p class="text-[11px] text-slate-400 mt-1">A recepção só enxerga os agendamentos do polo
+                                escolhido.</p>
+                        </div>
+
+                        <div id="blocoFoto">
+                            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-600 mb-1">Foto
+                                do aluno (opcional)</label>
+                            <div class="flex items-center gap-4">
+                                <img id="previewFoto" alt="Prévia da foto"
+                                    class="hidden w-20 h-20 rounded-full object-cover border-2 border-emerald-500 shadow-sm">
+                                <div id="placeholderFoto"
+                                    class="w-20 h-20 rounded-full bg-slate-100 border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400">
+                                    <i class="fa-solid fa-camera"></i>
+                                </div>
+                                <input type="file" id="inputFoto" accept="image/jpeg,image/png,image/webp"
+                                    class="text-xs text-slate-600 w-full">
+                            </div>
+                            <p class="text-[11px] text-slate-400 mt-1">A foto é reduzida automaticamente e aparece na
+                                tela da recepção.</p>
+                        </div>
+
+                        <div class="bg-amber-50 border border-amber-200 text-amber-900 rounded-lg p-3 text-xs">
+                            <i class="fa-solid fa-envelope text-amber-600"></i>
+                            Uma <strong>senha provisória aleatória</strong> será enviada ao e-mail informado.
+                        </div>
+                        <datalist id="listaCursos"></datalist>
+                        <div class="flex gap-3 pt-2">
+                            <button type="button" onclick="fecharModalUsuario()"
+                                class="w-1/3 bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium py-3 rounded-lg shadow-sm transition cursor-pointer">
+                                Cancelar
+                            </button>
+                            <button type="submit"
+                                class="w-2/3 bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-3 rounded-lg shadow-sm transition flex items-center justify-center gap-2 cursor-pointer">
+                                <i class="fa-solid fa-id-card"></i> Cadastrar e enviar senha
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </section>
+
+        <!-- ABA 3: Sincronização de Notas -->
+        <section id="page-sincronizacao" class="page-content space-y-6 hidden">
+            <div
+                class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden border-t-4 border-t-emerald-600 p-6 sm:p-8">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
+                    <div>
+                        <h2 class="text-xl font-bold text-slate-900 flex items-center gap-2">
+                            <i class="fa-solid fa-rotate text-emerald-600"></i> 3. Sincronização de Notas
+                        </h2>
+                        <p class="text-sm text-slate-500 mt-1">Notas lançadas no banco de dados do portal.</p>
+                    </div>
+                    <button onclick="carregarNotas()"
+                        class="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-semibold px-4 py-2.5 rounded-lg transition flex items-center gap-2 cursor-pointer shadow-sm">
+                        <i class="fa-solid fa-rotate-right text-emerald-600"></i> Recarregar notas
+                    </button>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm text-left text-slate-600">
+                        <thead class="text-xs text-slate-700 uppercase bg-slate-100 border-b border-slate-200">
+                            <tr>
+                                <th class="px-4 py-3">Matrícula / Aluno</th>
+                                <th class="px-4 py-3">Avaliação</th>
+                                <th class="px-4 py-3">Polo</th>
+                                <th class="px-4 py-3 text-center">Status</th>
+                                <th class="px-4 py-3 text-center">Nota (0-10)</th>
+                                <th class="px-4 py-3 text-right">Ação</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-200">
+                            <tr>
+                                <td colspan="6" class="px-4 py-6 text-center text-slate-400">Carregando notas...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ABA 4: Trilha de Auditoria -->
+        <section id="page-auditoria" class="page-content space-y-6 hidden">
+            <div
+                class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 sm:p-8 border-t-4 border-t-emerald-600">
+                <h2 class="text-xl font-bold text-slate-900 mb-1 flex items-center gap-2">
+                    <i class="fa-solid fa-shield-halved text-emerald-600"></i> 4. Trilha de Auditoria
+                </h2>
+                <p class="text-sm text-slate-500 mb-6">Painel de rastreabilidade para consultas de logs de segurança, IP
+                    e exclusões lógicas.</p>
+
+                <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-6 space-y-4 text-xs">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block font-semibold text-slate-600 mb-1.5">Filtrar por Usuário</label>
+                            <input type="text" id="filtroUsuario" placeholder="Nome ou ID..."
+                                class="w-full bg-white border border-slate-300 rounded-lg p-2.5 outline-none focus:ring-1 focus:ring-emerald-500">
+                        </div>
+                        <div>
+                            <label class="block font-semibold text-slate-600 mb-1.5">Filtrar por Ação</label>
+                            <select id="filtroAcao"
+                                class="w-full bg-white border border-slate-300 rounded-lg p-2.5 outline-none focus:ring-1 focus:ring-emerald-500">
+                                <option value="">Todas as Ações</option>
+                                <option value="CADASTRO_USUARIO">CADASTRO_USUARIO</option>
+                                <option value="LANÇAMENTO_NOTA">LANÇAMENTO_NOTA</option>
+                                <option value="SOFT_DELETE">SOFT_DELETE</option>
+                                <option value="ADICAO_VAGAS">ADICAO_VAGAS</option>
+                                <option value="REATIVACAO_USUARIO">REATIVACAO_USUARIO</option>
+                                <option value="ATUALIZACAO_FOTO">ATUALIZACAO_FOTO</option>
+                                <option value="ATUALIZACAO_POLO">ATUALIZACAO_POLO</option>
+                                <option value="REAGENDAMENTO_REALIZADO">REAGENDAMENTO_REALIZADO</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="flex justify-end">
+                        <button onclick="filtrarAuditoria()"
+                            class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-4 py-2 rounded-lg shadow-sm transition flex items-center gap-2 cursor-pointer">
+                            <i class="fa-solid fa-filter"></i> Filtrar Registros
+                        </button>
+                    </div>
+                </div>
+
+                <div id="lista-logs-auditoria" class="space-y-3 font-mono text-xs">
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <input type="file" id="inputFotoUsuario" accept="image/jpeg,image/png,image/webp" class="hidden">
+
+    <footer class="bg-white border-t border-slate-200 py-4 mt-auto">
+        <div class="max-w-7xl mx-auto px-4 text-center text-xs text-slate-500">
+            &copy; 2026 Centro Universitário de Valença (UNIFAA) — Painel da Coordenação Acadêmica.
+        </div>
+    </footer>
+
+    <!-- Script para carregar a tabela de vagas baseada na Trilha de Auditoria -->
+    <script>
+        function abrirModalUsuario() {
+            document.getElementById('modalCadastrarUsuario')?.classList.remove('hidden');
+        }
+        function fecharModalUsuario() {
+            document.getElementById('modalCadastrarUsuario')?.classList.add('hidden');
+        }
+        function abrirModalVaga() {
+            document.getElementById('modalCadastrarVaga')?.classList.remove('hidden');
+        }
+        function fecharModalVaga() {
+            document.getElementById('modalCadastrarVaga')?.classList.add('hidden');
+        }
+
+        function alternarCamposPerfil() {
+            const tipo = document.getElementById('novoTipo')?.value;
+            const blocoCurso = document.getElementById('blocoCurso');
+            const blocoPolo = document.getElementById('blocoPolo');
+            const blocoFoto = document.getElementById('blocoFoto');
+            const inputCurso = document.getElementById('novoCurso');
+
+            if (tipo === 'Aluno') {
+                blocoCurso?.classList.remove('hidden');
+                blocoFoto?.classList.remove('hidden');
+                blocoPolo?.classList.add('hidden');
+                if (inputCurso) inputCurso.required = true;
+            } else if (tipo === 'Recepção do Polo') {
+                blocoCurso?.classList.add('hidden');
+                blocoFoto?.classList.add('hidden');
+                blocoPolo?.classList.remove('hidden');
+                if (inputCurso) inputCurso.required = false;
+            } else {
+                blocoCurso?.classList.add('hidden');
+                blocoFoto?.classList.add('hidden');
+                blocoPolo?.classList.add('hidden');
+                if (inputCurso) inputCurso.required = false;
+            }
+        }
+
+        // Função inteligente que lê os logs de auditoria e popula a tabela de vagas
+        function sincronizarVagasDaAuditoria() {
+            const tabelaVagas = document.getElementById('listaVagasTabela');
+            const containerLogs = document.getElementById('lista-logs-auditoria');
+
+            if (!tabelaVagas) return;
+
+            // Se o container de logs estiver vazio, tenta aguardar o coordenadorHome.js carregar
+            setTimeout(() => {
+                const logsDivs = containerLogs ? containerLogs.querySelectorAll('div, p') : [];
+                let htmlVagas = '';
+                let contador = 0;
+
+                logsDivs.forEach(log => {
+                    const texto = log.textContent || log.innerText;
+                    if (texto.includes('ADICAO_VAGAS')) {
+                        contador++;
+                        htmlVagas += `
+                            <tr class="hover:bg-slate-50 transition">
+                                <td class="px-4 py-3 font-medium text-slate-900">${texto}</td>
+                                <td class="px-4 py-3 text-right">
+                                    <span class="text-xs bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full font-semibold">Ativa</span>
+                                </td>
+                            </tr>
+                        `;
+                    }
+                });
+
+                if (contador === 0) {
+                    tabelaVagas.innerHTML = `<tr><td colspan="5" class="px-4 py-6 text-center text-slate-400">Nenhuma vaga registrada nos logs de auditoria ainda.</td></tr>`;
+                } else {
+                    // Substitui a exibição formatando com base nos dados capturados da auditoria
+                    tabelaVagas.innerHTML = htmlVagas;
+                }
+            }, 800);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            alternarCamposPerfil();
+            sincronizarVagasDaAuditoria();
+        });
+    </script>
+
+    <script src="js/common.js"></script>
+    <script src="js/coordenadorHome.js"></script>
+</body>
+
+</html>
