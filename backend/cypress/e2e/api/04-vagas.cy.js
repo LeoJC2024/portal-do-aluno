@@ -1,6 +1,6 @@
 import { USUARIOS, CURSO_A, CURSO_B } from '../../support/dados';
 import { criarVaga, criarUsuarioAtivo, inserirVagaNoBanco, registrarDisciplina } from '../../support/apiHelpers';
-import { dataSP, hojeSP } from '../../support/datas';
+import { dataSP, hojeSP, vagaHojeNoFuturo } from '../../support/datas';
 
 const unico = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`;
 
@@ -83,10 +83,17 @@ describe('API: cadastro de vagas', () => {
     });
   });
 
-  it('aceita prova marcada para hoje', () => {
+  // O servidor recusa vaga de hoje cujo início já passou; por isso o início é calculado a partir da hora atual em SP.
+  // Entre 23:50 e 23:59 não há horário seguro ainda hoje: o teste fica PULADO (aparece como "pending" no relatório).
+  it('aceita prova marcada para hoje', function () {
+    const vaga = vagaHojeNoFuturo();
+    if (!vaga) this.skip();
+    expect(vaga.data, 'a vaga precisa ser de hoje').to.eq(hojeSP());
     const disciplina = `CY-hoje-${unico()}`;
     registrarDisciplina(t.coord, disciplina);
-    cadastrar(base({ data: dataSP(0), disciplina })).its('status').should('eq', 200);
+    cadastrar(base({ data: vaga.data, horario_inicio: vaga.inicio, horario_fim: vaga.fim, disciplina })).then((r) => {
+      expect(r.status, JSON.stringify(r.body)).to.eq(200);
+    });
   });
 });
 
