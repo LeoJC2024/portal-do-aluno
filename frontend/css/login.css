@@ -97,6 +97,52 @@ body::before {
   box-shadow: 0 0 0 4px rgba(10, 122, 95, 0.1);
 }
 
+/* Botão mostrar / ocultar senha (criado por ativarMostrarSenha, em js/common.js) */
+.input-field.campo-com-olho {
+  padding-right: 52px; /* texto longo não passa por baixo do ícone */
+}
+
+/* esconde o "olho" nativo do Edge para não aparecerem dois botões */
+.input-field.campo-com-olho::-ms-reveal,
+.input-field.campo-com-olho::-ms-clear {
+  display: none;
+}
+
+.btn-mostrar-senha {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: #94a3b8;
+  cursor: pointer;
+  transition: color 0.2s, background 0.2s;
+}
+
+.btn-mostrar-senha:hover {
+  color: #0a7a5f;
+  background: #f1f5f9;
+}
+
+.btn-mostrar-senha:focus-visible {
+  outline: 2px solid #0a7a5f;
+  outline-offset: 1px;
+  color: #0a7a5f;
+}
+
+/* o ícone do olho fica dentro do botão, sem a posição absoluta dos ícones da esquerda */
+.input-group .btn-mostrar-senha i {
+  position: static;
+  color: inherit;
+}
+
 .btn-submit {
   background: #0a7a5f;
   color: white;

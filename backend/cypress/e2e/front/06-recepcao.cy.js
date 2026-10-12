@@ -27,6 +27,12 @@ describe('Recepção: tela unificada', () => {
   it('mostra o cabeçalho e UM só painel de consulta (nome/matrícula + data)', () => {
     cy.get('#userName').should('have.text', 'Recepção Resende');
     cy.get('#userAvatar').should('have.text', 'R');
+    // mesmo padrão da Coordenação: perfil na barra e nome + matrícula no cartão de título
+    cy.get('#userRole').should('contain.text', 'Recepção do Polo').and('not.contain.text', 'Operador Portaria');
+    cy.get('#userRole i.fa-chevron-down').should('exist');
+    cy.get('#tituloAvatar').should('have.text', 'R');
+    cy.get('#tituloNome').should('have.text', 'Recepção Resende');
+    cy.get('#tituloMatricula').should('have.text', 'Matrícula AT00000').and('have.class', 'font-mono');
     cy.contains('Consultar Alunos e Validar Entrada');
     cy.get('#inputBusca').should('exist');
     cy.get('#inputDataFiltro').should('exist');
@@ -361,6 +367,7 @@ describe('Recepção: lista do dia (carrega sozinha) e polo', () => {
   it('mostra o polo da recepção (ou "todos" quando não há polo definido)', () => {
     abrir({ perfil: { polo: 'Polo EaD Resende' } });
     cy.get('#infoPolo').should('have.text', 'Polo: Polo EaD Resende');
+    cy.get('#blocoPolo').should('be.visible');
     abrir({ perfil: { polo: null } });
     cy.get('#infoPolo').should('contain.text', 'todos');
   });

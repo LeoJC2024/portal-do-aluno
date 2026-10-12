@@ -215,3 +215,150 @@ describe('Esqueci minha senha / primeiro acesso', () => {
     cy.get('#codigoVerificacao').should('have.attr', 'maxlength', '64').type('AbCdEfGhJk').should('have.value', 'AbCdEfGhJk');
   });
 });
+
+describe('Mostrar / ocultar senha', () => {
+  const olho = (campo) => `${campo} + .btn-mostrar-senha`;
+
+  // o campo começa oculto, o olho alterna para texto e volta
+  const conferirAlternancia = (campo) => {
+    cy.get(campo).should('have.attr', 'type', 'password');
+    cy.get(olho(campo))
+      .should('have.attr', 'type', 'button')
+      .and('have.attr', 'aria-pressed', 'false')
+      .and('have.attr', 'aria-label', 'Mostrar senha')
+      .find('i').should('have.class', 'fa-eye');
+
+    cy.get(olho(campo)).click();
+    cy.get(campo).should('have.attr', 'type', 'text');
+    cy.get(olho(campo))
+      .should('have.attr', 'aria-pressed', 'true')
+      .and('have.attr', 'aria-label', 'Ocultar senha')
+      .find('i').should('have.class', 'fa-eye-slash');
+
+    cy.get(olho(campo)).click();
+    cy.get(campo).should('have.attr', 'type', 'password');
+    cy.get(olho(campo))
+      .should('have.attr', 'aria-pressed', 'false')
+      .and('have.attr', 'aria-label', 'Mostrar senha');
+  };
+
+  const abrirPasso2 = () => {
+    cy.get('#btnEsqueciSenha').click();
+    cy.get('#matriculaRecuperar').type('E00005');
+    cy.get('#btnJaTenhoSenha').click();
+  };
+
+  // a senha não aparece na URL nem no localStorage / sessionStorage
+  const senhaNaoFoiGuardada = (senha) => {
+    cy.location('href').should('not.contain', senha).and('not.contain', encodeURIComponent(senha));
+    cy.window().then((win) => {
+      [win.localStorage, win.sessionStorage].forEach((armazenamento) => {
+        for (let i = 0; i < armazenamento.length; i++) {
+          expect(armazenamento.getItem(armazenamento.key(i))).not.to.contain(senha);
+        }
+      });
+    });
+  };
+
+  beforeEach(() => {
+    cy.stubApiGeral();
+    cy.abrirPagina('login.html');
+  });
+
+  it('login: o campo começa oculto, o olho alterna e volta, sem enviar o formulário', () => {
+    cy.mockApi('POST', '/api/login', {}, { alias: 'login' });
+    conferirAlternancia('#senha');
+    cy.get('@login.all').should('have.length', 0);
+  });
+
+  it('login: o valor digitado continua o mesmo ao mostrar e ocultar', () => {
+    cy.get('#senha').type('Senha@Longa123');
+    cy.get(olho('#senha')).click();
+    cy.get('#senha').should('have.value', 'Senha@Longa123');
+    cy.get(olho('#senha')).click();
+    cy.get('#senha').should('have.value', 'Senha@Longa123');
+  });
+
+  it('login: o campo tem espaço à direita para o ícone e o olho entra na ordem do Tab', () => {
+    cy.get('#senha').should('have.class', 'campo-com-olho')
+      .and(($c) => expect(parseFloat($c.css('padding-right'))).to.be.at.least(40));
+    cy.get(olho('#senha')).should('be.visible').and('not.have.attr', 'tabindex');
+    cy.get('#senha').focus();
+    cy.press(Cypress.Keyboard.Keys.TAB);
+    cy.focused().should('have.class', 'btn-mostrar-senha');
+  });
+
+  it('login: enviar com a senha visível volta para oculto, mantém o botão travado e não vaza a senha', () => {
+    cy.intercept({ method: 'POST', pathname: '/api/login' },
+      { delay: 1500, statusCode: 401, body: { sucesso: false, mensagem: 'Matrícula ou senha incorretas.' } }).as('login');
+    cy.get('#matricula').type('E00001');
+    cy.get('#senha').type('Senha@Secreta1');
+    cy.get(olho('#senha')).click();
+    cy.get('#senha').should('have.attr', 'type', 'text');
+
+    cy.get('.btn-submit').click();
+    cy.get('#senha').should('have.attr', 'type', 'password');
+    cy.get(olho('#senha')).should('have.attr', 'aria-pressed', 'false');
+    cy.get('.btn-submit').should('be.disabled');
+
+    cy.wait('@login').its('request.body').should('deep.equal', { matricula: 'E00001', senha: 'Senha@Secreta1' });
+    cy.swal('Erro no login', 'Matrícula ou senha incorretas.');
+    cy.get('.btn-submit').should('not.be.disabled');
+    senhaNaoFoiGuardada('Senha@Secreta1');
+  });
+
+  it('login: Enter no campo de senha continua enviando pelo botão Acessar', () => {
+    cy.mockApi('POST', '/api/login', { sucesso: false, mensagem: 'Matrícula ou senha incorretas.' }, { status: 401, alias: 'login' });
+    cy.get('#matricula').type('E00001');
+    cy.get('#senha').type('errada{enter}');
+    cy.wait('@login').its('request.body').should('deep.equal', { matricula: 'E00001', senha: 'errada' });
+  });
+
+  it('nova senha (recuperação / primeiro acesso): o olho alterna e volta', () => {
+    abrirPasso2();
+    conferirAlternancia('#novaSenhaRecuperar');
+  });
+
+  it('nova senha: "Voltar" e fechar o modal deixam o campo oculto de novo', () => {
+    abrirPasso2();
+    cy.get(olho('#novaSenhaRecuperar')).click();
+    cy.get('#novaSenhaRecuperar').should('have.attr', 'type', 'text');
+    cy.get('#btnVoltarPasso1').click();
+    cy.get('#novaSenhaRecuperar').should('have.attr', 'type', 'password');
+
+    cy.get('#btnJaTenhoSenha').click();
+    cy.get(olho('#novaSenhaRecuperar')).click();
+    cy.get('#fecharModal').click();
+    cy.get('#novaSenhaRecuperar').should('have.attr', 'type', 'password');
+    cy.get(olho('#novaSenhaRecuperar')).should('have.attr', 'aria-pressed', 'false');
+  });
+
+  it('nova senha: enviar com a senha visível volta para oculto e não vaza a senha', () => {
+    cy.mockApi('POST', '/api/recuperar-senha', { sucesso: true, mensagem: 'Senha definida com sucesso! Você já pode fazer login.' }, { alias: 'recuperar' });
+    abrirPasso2();
+    cy.get('#codigoVerificacao').type('ProvisoriA1');
+    cy.get('#novaSenhaRecuperar').type('NovaSenha@1');
+    cy.get(olho('#novaSenhaRecuperar')).click();
+    cy.get('#formConfirmarCodigo button[type=submit]').click();
+
+    cy.get('#novaSenhaRecuperar').should('have.attr', 'type', 'password');
+    cy.wait('@recuperar').its('request.body')
+      .should('deep.equal', { matricula: 'E00005', codigo: 'ProvisoriA1', novaSenha: 'NovaSenha@1' });
+    cy.swal('Sucesso!', 'Senha definida com sucesso');
+    senhaNaoFoiGuardada('NovaSenha@1');
+  });
+
+  it('primeiro acesso aberto pelo login: os dois campos de senha ficam ocultos', () => {
+    cy.mockApi('POST', '/api/login',
+      { sucesso: false, trocar_senha: true, mensagem: 'Primeiro acesso: é necessário definir uma nova senha.' }, { status: 403 });
+    cy.get('#matricula').type('E00009');
+    cy.get('#senha').type('ProvisoriA1');
+    cy.get(olho('#senha')).click();
+    cy.get('.btn-submit').click();
+    cy.swal('Primeiro acesso');
+    cy.confirmarSwal();
+    cy.get('#senha').should('have.attr', 'type', 'password');
+    cy.get('#novaSenhaRecuperar').should('have.attr', 'type', 'password');
+    cy.get(olho('#novaSenhaRecuperar')).should('be.visible').and('have.attr', 'aria-pressed', 'false');
+  });
+});

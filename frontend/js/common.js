@@ -148,6 +148,51 @@ function sairDaConta() {
   });
 }
 
+// ---------- mostrar / ocultar senha ----------
+// Coloca um botão com ícone de olho dentro do campo de senha (o pai do campo precisa ter position: relative).
+// O botão só troca o type entre password e text: o valor do campo nunca é lido, guardado nem registrado.
+function ativarMostrarSenha(campo) {
+  if (!campo || campo.dataset.mostrarSenha) return;
+  campo.dataset.mostrarSenha = 'sim';
+  campo.classList.add('campo-com-olho');
+
+  const botao = document.createElement('button');
+  botao.type = 'button'; // não envia o formulário
+  botao.className = 'btn-mostrar-senha';
+  if (campo.id) botao.setAttribute('aria-controls', campo.id);
+  botao.innerHTML = '<i class="fa-solid fa-eye" aria-hidden="true"></i>';
+  botao.addEventListener('click', () => definirSenhaVisivel(campo, campo.type === 'password'));
+  campo.insertAdjacentElement('afterend', botao);
+
+  definirSenhaVisivel(campo, false); // estado inicial sempre oculto
+}
+
+function definirSenhaVisivel(campo, visivel) {
+  campo.type = visivel ? 'text' : 'password';
+  const botao = campo.nextElementSibling;
+  if (!botao || !botao.classList.contains('btn-mostrar-senha')) return;
+  botao.setAttribute('aria-pressed', visivel ? 'true' : 'false');
+  botao.setAttribute('aria-label', visivel ? 'Ocultar senha' : 'Mostrar senha');
+  botao.title = visivel ? 'Ocultar senha' : 'Mostrar senha';
+  const icone = botao.querySelector('i');
+  if (icone) {
+    icone.classList.toggle('fa-eye', !visivel);
+    icone.classList.toggle('fa-eye-slash', visivel);
+  }
+}
+
+// volta todos os campos de senha (da página ou de um trecho dela) para oculto
+function ocultarSenhas(raiz = document) {
+  raiz.querySelectorAll('input[data-mostrar-senha]').forEach((campo) => definirSenhaVisivel(campo, false));
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('input[type="password"]').forEach(ativarMostrarSenha);
+});
+// captura: oculta antes de qualquer handler do formulário e antes do gerenciador de senhas ler o campo
+document.addEventListener('submit', () => ocultarSenhas(), true);
+window.addEventListener('pagehide', () => ocultarSenhas());
+
 // ---------- auditoria (filtros e paginação no servidor; usados pelo auditor e pela coordenação) ----------
 // monta a query string só com os filtros preenchidos
 function queryAuditoria(filtros, pagina) {

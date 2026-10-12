@@ -5,9 +5,15 @@ let modoAtual = 'hoje'; // 'hoje' = lista do dia; 'consulta' = resultado de uma 
 window.addEventListener('DOMContentLoaded', () => {
   if (!exigirPerfil(['recepção do polo'])) return;
 
+  // mesmo preenchimento do cabeçalho da Coordenação (dados gravados no login, sempre como texto)
   const nome = localStorage.getItem('usuario_nome') || 'Recepção';
+  const matricula = localStorage.getItem('usuario_matricula') || '';
+  const inicial = (nome.trim().split(' ')[0] || 'R').charAt(0).toUpperCase();
   setTexto('userName', nome);
-  setTexto('userAvatar', nome.trim().charAt(0).toUpperCase() || 'P');
+  setTexto('userAvatar', inicial);
+  setTexto('tituloAvatar', inicial);
+  setTexto('tituloNome', nome);
+  setTexto('tituloMatricula', `Matrícula ${matricula}`);
 
   carregarPoloDaRecepcao();
   carregarListaDoDia(); // a lista de hoje já aparece ao abrir a tela
@@ -361,6 +367,9 @@ async function carregarPoloDaRecepcao() {
     const { ok, dados } = await apiFetch('/api/perfil');
     if (!ok || !dados) return;
     setTexto('infoPolo', dados.polo ? `Polo: ${dados.polo}` : 'Polo: todos (nenhum polo definido para este usuário)');
+    const bloco = document.getElementById('blocoPolo');
+    bloco.classList.remove('hidden');
+    bloco.classList.add('inline-flex');
   } catch (error) {
     console.error('Erro ao carregar o perfil:', error);
   }

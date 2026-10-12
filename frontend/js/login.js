@@ -164,6 +164,7 @@ function irParaPasso2() {
     return;
   }
   document.getElementById('resumoMatricula').textContent = `Matrícula: ${matricula}`;
+  ocultarSenhas();
   document.getElementById('passo1Solicitar').style.display = 'none';
   document.getElementById('passo2Confirmar').style.display = 'block';
 }
@@ -172,12 +173,14 @@ function abrirModalRecuperacao(matricula, direto) {
   const modal = document.getElementById('modalRecuperar');
   document.getElementById('matriculaRecuperar').value = matricula || '';
   modal.style.display = 'flex';
+  ocultarSenhas();
   if (direto && matricula) irParaPasso2();
 }
 
 function voltarPasso1() {
   document.getElementById('passo2Confirmar').style.display = 'none';
   document.getElementById('passo1Solicitar').style.display = 'block';
+  ocultarSenhas();
   const campoCodigo = document.getElementById('codigoVerificacao');
   const campoNova = document.getElementById('novaSenhaRecuperar');
   if (campoCodigo) campoCodigo.value = '';
