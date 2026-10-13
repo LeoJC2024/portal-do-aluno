@@ -1,4 +1,5 @@
 import { SESSOES } from '../../support/dados';
+import { dataSP } from '../../support/datas';
 
 const vaga = (o = {}) => ({
   id: 1, polo: 'Polo Resende', curso: 'Engenharia de Software', disciplina: 'Machine Learning',
@@ -566,5 +567,116 @@ describe('Portal do aluno: comprovante do agendamento', () => {
     cy.contains('#modalComprovante button', 'Imprimir / Salvar PDF').scrollIntoView().should('be.visible');
     cy.contains('#modalComprovante button', 'Fechar').scrollIntoView().click();
     fechado();
+  });
+});
+
+describe('Portal do aluno: avisos da coordenação com o período de agendamento', () => {
+  // datas relativas a "hoje" no fuso de São Paulo (as mesmas regras da tela)
+  const dm = (iso) => iso.slice(5).split('-').reverse().join('/');
+  const comPeriodo = (o = {}) => vaga({
+    disciplina: 'Linux Security', polo: 'Polo Valença (Sede)',
+    agendamento_inicio: dataSP(-1), agendamento_fim: dataSP(4), data_prova: dataSP(5), ...o
+  });
+  const avisos = () => cy.get('#avisosAgendamento .aviso-agendamento');
+
+  it('período aberto: "Agendamento liberado de ... a ...", disciplina, polo e data da prova', () => {
+    const v = comPeriodo();
+    abrir({ vagas: [v] });
+    avisos().should('have.length', 1).first().as('aviso');
+    cy.get('@aviso').should('have.attr', 'data-situacao', 'aberto')
+      .and('contain.text', `Agendamento liberado de ${dm(v.agendamento_inicio)} a ${dm(v.agendamento_fim)}`)
+      .and('contain.text', `Linux Security – Polo Valença (Sede), prova em ${dm(v.data_prova)}`)
+      .and('not.contain.text', '(Polo Valença (Sede))');
+    // mesmo visual dos avisos fixos
+    cy.get('@aviso').should('have.class', 'bg-slate-50').and('have.class', 'rounded-xl')
+      .find('.text-teal-700.font-semibold').should('exist');
+  });
+
+  it('período que ainda não começou: "Agendamento abre em ..." no lugar de "liberado"', () => {
+    const v = comPeriodo({ agendamento_inicio: dataSP(2), agendamento_fim: dataSP(6), data_prova: dataSP(8), agendamento_aberto: false });
+    abrir({ vagas: [v] });
+    avisos().should('have.length', 1).first()
+      .should('have.attr', 'data-situacao', 'abre-em')
+      .and('contain.text', `Agendamento abre em ${dm(v.agendamento_inicio)}`)
+      .and('contain.text', dm(v.agendamento_fim))
+      .and('contain.text', `Linux Security – Polo Valença (Sede), prova em ${dm(v.data_prova)}`)
+      .and('not.contain.text', 'liberado');
+  });
+
+  it('período encerrado ou prova já passada não geram aviso', () => {
+    abrir({ vagas: [
+      comPeriodo({ id: 1, disciplina: 'Encerrada', agendamento_inicio: dataSP(-5), agendamento_fim: dataSP(-1), data_prova: dataSP(3) }),
+      comPeriodo({ id: 2, disciplina: 'Prova Passada', agendamento_inicio: dataSP(-5), agendamento_fim: dataSP(2), data_prova: dataSP(-1) }),
+      comPeriodo({ id: 3, disciplina: 'Aberta' })
+    ] });
+    avisos().should('have.length', 1).and('contain.text', 'Aberta');
+    cy.get('#avisosAgendamento').should('not.contain.text', 'Encerrada').and('not.contain.text', 'Prova Passada');
+  });
+
+  it('sem vagas com período: mostra a mensagem de lista vazia', () => {
+    abrir({ vagas: [vaga({ agendamento_inicio: null, agendamento_fim: null })] });
+    avisos().should('not.exist');
+    cy.get('#avisosAgendamento').should('be.visible')
+      .and('have.text', 'Nenhum período de agendamento aberto no momento.');
+  });
+
+  it('os avisos fixos de Agosto foram removidos: a caixa só tem os avisos automáticos', () => {
+    abrir({ vagas: [comPeriodo()] });
+    avisos().should('have.length', 1);
+    cy.get('#avisosAgendamento').siblings().should('not.exist');
+    cy.contains('25 de Agosto').should('not.exist');
+    cy.contains('20 de Agosto').should('not.exist');
+  });
+
+  it('ordena pelo fim do período (mais próximo primeiro) e limita a 5 avisos', () => {
+    const fins = [6, 2, 9, 1, 4, 3, 8];
+    abrir({ vagas: fins.map((f, i) => comPeriodo({
+      id: i + 1, disciplina: `Disc ${f}`, agendamento_fim: dataSP(f), data_prova: dataSP(f + 1)
+    })) });
+    avisos().should('have.length', 5);
+    [1, 2, 3, 4, 6].forEach((f, i) => avisos().eq(i).should('contain.text', `Disc ${f} – `));
+  });
+
+  it('mesma disciplina, polo, período e data de prova com horários diferentes geram um único aviso', () => {
+    const v = comPeriodo({ id: 1, horario: '08:00:00', horario_fim: '10:00:00' });
+    abrir({ vagas: [
+      v,
+      comPeriodo({ id: 2, horario: '14:00:00', horario_fim: '16:00:00' }),
+      comPeriodo({ id: 3, horario: '19:00:00', horario_fim: '21:00:00' })
+    ] });
+    avisos().should('have.length', 1).first()
+      .should('contain.text', `Linux Security – Polo Valença (Sede), prova em ${dm(v.data_prova)}`);
+  });
+
+  it('data de prova ou polo diferentes geram avisos separados', () => {
+    abrir({ vagas: [
+      comPeriodo({ id: 1, data_prova: dataSP(5) }),
+      comPeriodo({ id: 2, data_prova: dataSP(6) }),
+      comPeriodo({ id: 3, data_prova: dataSP(5), polo: 'Polo Resende' })
+    ] });
+    avisos().should('have.length', 3);
+    cy.get('#avisosAgendamento')
+      .should('contain.text', `Linux Security – Polo Valença (Sede), prova em ${dm(dataSP(5))}`)
+      .and('contain.text', `Linux Security – Polo Valença (Sede), prova em ${dm(dataSP(6))}`)
+      .and('contain.text', `Linux Security – Polo Resende, prova em ${dm(dataSP(5))}`);
+  });
+
+  it('o agrupamento vem antes do limite de 5: horários repetidos não ocupam vagas de aviso', () => {
+    const fins = [1, 2, 3, 4, 5, 6];
+    abrir({ vagas: [
+      ...fins.map((f, i) => comPeriodo({ id: i + 1, disciplina: `Disc ${f}`, agendamento_fim: dataSP(f), data_prova: dataSP(f + 1) })),
+      // mais horários da Disc 1: se não agrupasse, empurrariam as outras para fora do limite
+      comPeriodo({ id: 7, disciplina: 'Disc 1', agendamento_fim: dataSP(1), data_prova: dataSP(2), horario: '14:00:00' }),
+      comPeriodo({ id: 8, disciplina: 'Disc 1', agendamento_fim: dataSP(1), data_prova: dataSP(2), horario: '19:00:00' })
+    ] });
+    avisos().should('have.length', 5);
+    [1, 2, 3, 4, 5].forEach((f, i) => avisos().eq(i).should('contain.text', `Disc ${f} – `));
+  });
+
+  it('disciplina e polo com HTML são exibidos como texto e não executam', () => {
+    abrir({ vagas: [comPeriodo({ disciplina: '<img src=x onerror="window.__xss=1">', polo: '<b>Polo</b>' })] });
+    avisos().first().should('contain.text', '<img src=x onerror="window.__xss=1">').and('contain.text', '<b>Polo</b>');
+    cy.get('#avisosAgendamento img, #avisosAgendamento b').should('not.exist');
+    cy.window().its('__xss').should('be.undefined');
   });
 });

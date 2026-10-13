@@ -85,6 +85,7 @@ async function carregarVagas() {
 
   try {
     const [rv, ra] = await Promise.all([apiFetch('/api/vagas'), apiFetch('/api/meus-agendamentos')]);
+    renderizarAvisosAgendamento(rv.ok && Array.isArray(rv.dados) ? rv.dados : null);
     if (!rv.ok || !ra.ok) throw new Error('Falha ao carregar dados');
 
     vagasPorDisciplina = new Map();
@@ -120,6 +121,80 @@ async function carregarVagas() {
       </div>`;
     atualizarContadores(0, 0);
   }
+}
+
+// ---------- avisos da coordenação: períodos de agendamento ----------
+const LIMITE_AVISOS_AGENDAMENTO = 5;
+
+// "YYYY-MM-DD" -> "dd/mm" (as datas chegam do banco como texto, sem conversão de fuso)
+function diaMes(iso) {
+  const [, mes, dia] = String(iso).slice(0, 10).split('-');
+  return `${dia}/${mes}`;
+}
+
+// usa as mesmas vagas de /api/vagas (já filtradas pelo curso do aluno). Só entram vagas com
+// período definido, que ainda não terminou e cuja prova não passou ("hoje" no fuso de São Paulo).
+// Todo texto vindo do banco entra por textContent.
+function renderizarAvisosAgendamento(vagas) {
+  const container = document.getElementById('avisosAgendamento');
+  container.replaceChildren();
+  if (!vagas) {
+    container.hidden = true;
+    return;
+  }
+
+  const hoje = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });
+  const validas = vagas
+    .filter((v) => v.agendamento_inicio && v.agendamento_fim && v.data_prova)
+    .filter((v) => String(v.agendamento_fim).slice(0, 10) >= hoje && String(v.data_prova).slice(0, 10) >= hoje);
+
+  // vagas da mesma disciplina, polo, período e data de prova (só o horário muda) viram um único aviso
+  const agrupadas = new Map();
+  validas.forEach((v) => {
+    const chave = JSON.stringify([
+      v.disciplina, v.polo,
+      String(v.agendamento_inicio).slice(0, 10), String(v.agendamento_fim).slice(0, 10), String(v.data_prova).slice(0, 10)
+    ]);
+    if (!agrupadas.has(chave)) agrupadas.set(chave, v);
+  });
+
+  const avisos = [...agrupadas.values()]
+    .sort((a, b) => String(a.agendamento_fim).localeCompare(String(b.agendamento_fim))
+      || String(a.data_prova).localeCompare(String(b.data_prova))
+      || String(a.disciplina).localeCompare(String(b.disciplina), 'pt-BR'))
+    .slice(0, LIMITE_AVISOS_AGENDAMENTO);
+
+  if (avisos.length === 0) {
+    const vazio = document.createElement('div');
+    vazio.className = 'p-3 bg-slate-50 rounded-xl border border-slate-200 text-slate-500';
+    vazio.textContent = 'Nenhum período de agendamento aberto no momento.';
+    container.appendChild(vazio);
+  }
+
+  avisos.forEach((v) => {
+    const inicio = diaMes(v.agendamento_inicio);
+    const fim = diaMes(v.agendamento_fim);
+    const aberto = String(v.agendamento_inicio).slice(0, 10) <= hoje;
+
+    const cartao = document.createElement('div');
+    cartao.className = 'aviso-agendamento p-3 bg-slate-50 rounded-xl border border-slate-200';
+    cartao.dataset.situacao = aberto ? 'aberto' : 'abre-em';
+
+    const titulo = document.createElement('div');
+    titulo.className = 'text-teal-700 font-semibold mb-1';
+    titulo.textContent = aberto
+      ? `Agendamento liberado de ${inicio} a ${fim}:`
+      : `Agendamento abre em ${inicio} (até ${fim}):`;
+
+    const texto = document.createElement('div');
+    texto.className = 'text-slate-700';
+    texto.textContent = `${v.disciplina || ''} – ${v.polo || 'Polo Geral'}, prova em ${diaMes(v.data_prova)}`;
+
+    cartao.append(titulo, texto);
+    container.appendChild(cartao);
+  });
+
+  container.hidden = false;
 }
 
 function renderizarCard(disciplina) {
