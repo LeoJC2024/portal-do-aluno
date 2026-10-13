@@ -1232,7 +1232,10 @@ app.get('/api/agendamentos/:id/comprovante', autenticar, exigirPerfil(PERFIL.ALU
 
   const { rows } = await pool.query(
     `SELECT a.id, a.status, a.data_agendada, a.horario_agendado, v.horario_fim, v.disciplina, v.polo,
-            COALESCE(NULLIF(TRIM(v.curso), ''), u.curso) AS curso, u.nome, u.matricula
+            COALESCE(NULLIF(TRIM(v.curso), ''), u.curso) AS curso, u.nome, u.matricula,
+            -- criado_em é TIMESTAMP sem fuso preenchido pelo DEFAULT now() do banco, isto é, no fuso da sessão
+            -- (UTC no Supabase); lido no fuso da sessão vira um instante absoluto (timestamptz -> Date)
+            a.criado_em AT TIME ZONE current_setting('TimeZone') AS criado_em
        FROM agendamentos a
        JOIN vagas v ON v.id = a.vaga_id
        JOIN usuarios u ON u.id = a.usuario_id
@@ -1244,7 +1247,13 @@ app.get('/api/agendamentos/:id/comprovante', autenticar, exigirPerfil(PERFIL.ALU
 
   const codigo = codigoAgendamento(ag.id);
   const agora = new Date();
-  const [diaSP, horaSP] = agora.toLocaleString('sv-SE', { timeZone: FUSO }).split(' ');
+  // "dd/mm/aaaa hh:mm:ss" no fuso de São Paulo
+  const emSP = (data) => {
+    const [dia, hora] = data.toLocaleString('sv-SE', { timeZone: FUSO }).split(' ');
+    return `${dia.split('-').reverse().join('/')} ${hora}`;
+  };
+  // agendamentos antigos podem não ter criado_em
+  const agendadoEm = ag.criado_em ? new Date(ag.criado_em) : null;
 
   await registrarAuditoria(
     pool, 'COMPROVANTE_EMITIDO',
@@ -1266,8 +1275,10 @@ app.get('/api/agendamentos/:id/comprovante', autenticar, exigirPerfil(PERFIL.ALU
       horario_inicio: String(ag.horario_agendado).slice(0, 5),
       horario_fim: ag.horario_fim ? String(ag.horario_fim).slice(0, 5) : null,
       situacao: ag.status,
+      agendado_em: agendadoEm ? agendadoEm.toISOString() : null,
+      agendado_em_local: agendadoEm ? emSP(agendadoEm) : null,
       emitido_em: agora.toISOString(),
-      emitido_em_local: `${diaSP.split('-').reverse().join('/')} ${horaSP}`,
+      emitido_em_local: emSP(agora),
       fuso: FUSO
     }
   });

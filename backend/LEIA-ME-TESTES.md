@@ -43,9 +43,11 @@ npm run cy:telas
 
 API (duas janelas do terminal):
 ```
-npm run servidor:teste     # janela 1: servidor usando .env.teste, e-mail desligado
+npm run servidor:teste     # janela 1: servidor usando .env.teste (porta 3001), e-mail desligado
 npm run cy:api             # janela 2
 ```
+
+O servidor de teste usa a `PORT` do `.env.teste` (3001), então pode ficar ligado junto com o servidor normal (`npm start`, porta 3000). O Cypress de API lê essa mesma porta e se recusa a rodar (mensagem "TESTES DE API BLOQUEADOS") se a porta for a 3000, se a URL não for a do servidor de teste, se o banco do `.env.teste` for o mesmo do `.env` normal ou se o servidor de teste não estiver no ar.
 
 Tudo de uma vez: `npm run cy:tudo` (com o servidor de teste rodando). Para ver passo a passo no navegador: `npm run cy:abrir`.
 

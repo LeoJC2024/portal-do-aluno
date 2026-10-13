@@ -33,6 +33,7 @@ describe('API: comprovante do agendamento', () => {
     cy.tokenDe(USUARIOS.alunoA2).then((x) => { t.a2 = x; });
     cy.tokenDe(USUARIOS.alunoB).then((x) => { t.b = x; });
 
+    cy.then(() => { ag.inicio = Date.now(); });
     cy.then(() => criarVaga(t.coord, { horario_inicio: '14:00', horario_fim: '16:30', data: dataSP(12) })).then((v) => {
       ag.vaga = v;
       agendar(t.a1, v.id).then((r) => {
@@ -69,6 +70,50 @@ describe('API: comprovante do agendamento', () => {
       expect(emitido).to.be.within(antes - 5 * 60000, Date.now() + 5 * 60000);
       expect(c.emitido_em_local).to.match(/^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}:\d{2}$/);
       expect(c.emitido_em_local).to.eq(emSP(c.emitido_em));
+    });
+  });
+
+  // relógios do banco, do servidor e do Cypress podem divergir um pouco; 3 h de erro de fuso ficam bem fora da folga
+  const FOLGA = 2 * 60000;
+
+  it('"Agendado em" vem preenchido, no fuso de São Paulo, e não é posterior ao "Emitido em"', () => {
+    comprovante(t.a1, ag.id).then((r) => {
+      expect(r.status, JSON.stringify(r.body)).to.eq(200);
+      const c = r.body.comprovante;
+      expect(c.agendado_em, 'agendado_em').to.be.a('string');
+      const agendado = Date.parse(c.agendado_em);
+      const emitido = Date.parse(c.emitido_em);
+      expect(agendado, 'agendado_em é data válida').to.not.be.NaN;
+      // feito no before() deste arquivo: entre o início do before e agora
+      expect(agendado).to.be.within(ag.inicio - FOLGA, Date.now() + FOLGA);
+      expect(agendado, 'agendado_em <= emitido_em').to.be.at.most(emitido + FOLGA);
+      expect(c.agendado_em_local).to.match(/^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}:\d{2}$/);
+      expect(c.agendado_em_local).to.eq(emSP(c.agendado_em));
+    });
+  });
+
+  it('"Agendado em" é o momento gravado na linha: não muda a cada emissão', () => {
+    comprovante(t.a1, ag.id).then((r1) => {
+      comprovante(t.a1, ag.id).then((r2) => {
+        expect(r2.body.comprovante.agendado_em).to.eq(r1.body.comprovante.agendado_em);
+        expect(r2.body.comprovante.agendado_em_local).to.eq(r1.body.comprovante.agendado_em_local);
+      });
+    });
+  });
+
+  it('agendamento antigo sem criado_em: "Agendado em" vem nulo e o comprovante continua funcionando', () => {
+    criarVaga(t.coord).then((v) => {
+      agendar(t.a1, v.id).then((r) => {
+        expect(r.status).to.eq(200);
+        const id = r.body.agendamento.id;
+        cy.bd('UPDATE agendamentos SET criado_em = NULL WHERE id = $1', [id]);
+        comprovante(t.a1, id).then((c) => {
+          expect(c.status).to.eq(200);
+          expect(c.body.comprovante.agendado_em).to.be.null;
+          expect(c.body.comprovante.agendado_em_local).to.be.null;
+          expect(c.body.comprovante.emitido_em_local).to.match(/^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}:\d{2}$/);
+        });
+      });
     });
   });
 
@@ -176,6 +221,34 @@ describe('API: comprovante do agendamento', () => {
                 expect(c.status).to.eq(200);
                 expect(c.body.comprovante).to.deep.include({
                   codigo: codigoDe(novo), data_prova: v2.data, horario_inicio: '19:00', horario_fim: '21:00', polo: 'Polo CY 2', situacao: 'ATIVO'
+                });
+              });
+            });
+          });
+        });
+      });
+    });
+
+    it('reagendamento: "Agendado em" do novo id é o momento do reagendamento, não o do agendamento original', () => {
+      const disciplina = `CY-comp-ag-${Date.now()}`;
+      criarVaga(t.coord, { disciplina, data: dataSP(10) }).then((v1) => {
+        criarVaga(t.coord, { disciplina, data: dataSP(11), horario_inicio: '19:00', horario_fim: '21:00' }).then((v2) => {
+          agendar(t.a1, v1.id).then((r1) => {
+            const antigo = r1.body.agendamento.id;
+            // o agendamento original fica com o criado_em de 1 dia atrás, para o reagendamento se distinguir dele
+            cy.bd(`UPDATE agendamentos SET criado_em = criado_em - INTERVAL '1 day' WHERE id = $1`, [antigo]);
+            comprovante(t.a1, antigo).then((c1) => {
+              const original = Date.parse(c1.body.comprovante.agendado_em);
+              const antesReagendar = Date.now();
+              cy.api('POST', '/api/reagendar', { token: t.a1, body: { agendamento_id: antigo, nova_vaga_id: v2.id } }).then((r2) => {
+                expect(r2.status, JSON.stringify(r2.body)).to.eq(200);
+                comprovante(t.a1, r2.body.agendamento.id).then((c2) => {
+                  const c = c2.body.comprovante;
+                  const reagendado = Date.parse(c.agendado_em);
+                  expect(reagendado, 'depois do agendamento original').to.be.greaterThan(original + 12 * 3600000);
+                  expect(reagendado, 'momento do reagendamento').to.be.within(antesReagendar - FOLGA, Date.now() + FOLGA);
+                  expect(reagendado, 'agendado_em <= emitido_em').to.be.at.most(Date.parse(c.emitido_em) + FOLGA);
+                  expect(c.agendado_em_local).to.eq(emSP(c.agendado_em));
                 });
               });
             });

@@ -354,6 +354,7 @@ describe('Portal do aluno: comprovante do agendamento', () => {
     codigo: 'AG-000077', agendamento_id: 77, aluno_nome: 'MARIA CLARA SOUZA', matricula: 'E00001',
     disciplina: 'Banco de Dados', curso: 'Engenharia de Software', polo: 'Polo Resende',
     data_prova: '2030-12-11', horario_inicio: '14:00', horario_fim: '16:00', situacao: 'ATIVO',
+    agendado_em: '2030-11-28T18:42:07.000Z', agendado_em_local: '28/11/2030 15:42:07',
     emitido_em: '2030-12-01T13:05:09.000Z', emitido_em_local: '01/12/2030 10:05:09', fuso: 'America/Sao_Paulo', ...o
   });
   const mockComprovante = (id, c = comprovante()) =>
@@ -371,6 +372,7 @@ describe('Portal do aluno: comprovante do agendamento', () => {
     cy.get('#compData').should('have.text', c.data_prova.split('-').reverse().join('/'));
     cy.get('#compHorario').should('have.text', `${c.horario_inicio} às ${c.horario_fim}`);
     cy.get('#compSituacao').should('have.text', c.situacao);
+    cy.get('#compAgendado').should('have.text', c.agendado_em_local);
     cy.get('#compEmitido').should('have.text', c.emitido_em_local);
   };
 
@@ -455,6 +457,21 @@ describe('Portal do aluno: comprovante do agendamento', () => {
       });
     });
 
+    it('mostra "Agendado em" com data e hora do agendamento, junto de "Emitido em"', () => {
+      abrirPeloCartao();
+      cy.contains('#modalComprovante dt', 'Agendado em').next('dd').should('have.id', 'compAgendado');
+      cy.contains('#modalComprovante dt', 'Emitido em').next('dd').should('have.id', 'compEmitido');
+      cy.get('#compAgendado').should('have.text', '28/11/2030 15:42:07')
+        .invoke('text').should('match', /^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}:\d{2}$/);
+    });
+
+    it('agendamento antigo sem data de agendamento mostra "—" em "Agendado em"', () => {
+      mockComprovante(77, comprovante({ agendado_em: null, agendado_em_local: null }));
+      abrirPeloCartao();
+      cy.get('#compAgendado').should('have.text', '—');
+      cy.get('#compEmitido').should('have.text', '01/12/2030 10:05:09');
+    });
+
     it('vaga antiga sem horário de fim mostra só o início', () => {
       mockComprovante(77, comprovante({ horario_fim: null }));
       abrirPeloCartao();
@@ -474,7 +491,7 @@ describe('Portal do aluno: comprovante do agendamento', () => {
     const malicioso = '<img src=x onerror="window.__xss=1">';
     abrir({ vagas: [vaga({ id: 2, disciplina: 'Banco de Dados' })], agendamentos: [agendamento()] });
     mockComprovante(77, comprovante({
-      aluno_nome: malicioso, disciplina: malicioso, curso: malicioso, polo: malicioso, codigo: malicioso, emitido_em_local: malicioso
+      aluno_nome: malicioso, disciplina: malicioso, curso: malicioso, polo: malicioso, codigo: malicioso, agendado_em_local: malicioso, emitido_em_local: malicioso
     }));
     cy.get('[data-acao="comprovante"]').click();
     cy.wait('@comprovante');

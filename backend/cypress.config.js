@@ -10,8 +10,12 @@ const { Pool } = require('pg');
 dotenv.config({ path: path.join(__dirname, '.env.teste') });
 
 const PORTA_FRONT = Number(process.env.PORTA_FRONT_TESTE || 5501);
+// servidor de teste (npm run servidor:teste) usa a PORT do .env.teste; a 3000 é do servidor normal
+const PORTA_PRODUCAO = 3000;
+const PORTA_API = Number(process.env.PORT);
 let servidorFront = null;
 let pool = null;
+let ambienteApiConferido = null;
 
 // serve a pasta ../frontend para os testes de tela
 function iniciarServidorFront() {
@@ -34,6 +38,60 @@ function bancoDeTeste() {
     });
   }
   return pool;
+}
+
+// "host:porta/banco" de uma connection string, para comparar sem expor usuário e senha
+function identificarBanco(url) {
+  try {
+    const u = new URL(url);
+    return `${u.hostname.toLowerCase()}:${u.port || 5432}${u.pathname}|${decodeURIComponent(u.username)}`;
+  } catch (_) {
+    return null;
+  }
+}
+
+// Trava dos testes de API: só roda contra o servidor e o banco de TESTE.
+// Confere a URL da API, o banco do .env.teste (comparado com o do .env normal, sem exibir nenhum dos dois)
+// e se o servidor de teste está no ar. Qualquer problema vira um erro com a explicação.
+async function conferirAmbienteApi(apiUrl) {
+  if (ambienteApiConferido) return ambienteApiConferido;
+  const erro = (msg) => new Error(`TESTES DE API BLOQUEADOS: ${msg}`);
+
+  if (!Number.isInteger(PORTA_API) || PORTA_API === PORTA_PRODUCAO) {
+    throw erro(`a PORT do .env.teste precisa estar definida e ser diferente de ${PORTA_PRODUCAO} (porta do servidor normal). Use PORT=3001.`);
+  }
+  let url;
+  try { url = new URL(apiUrl); } catch (_) { throw erro(`URL da API inválida: "${apiUrl}".`); }
+  const portaUrl = Number(url.port || (url.protocol === 'https:' ? 443 : 80));
+  if (!['localhost', '127.0.0.1'].includes(url.hostname) || portaUrl !== PORTA_API) {
+    throw erro(`a URL da API é ${apiUrl}, mas o servidor de teste roda em http://localhost:${PORTA_API} (PORT do .env.teste). ` +
+      'Não defina CYPRESS_API_URL apontando para outro servidor.');
+  }
+
+  bancoDeTeste(); // exige BANCO_DE_TESTE=sim e DATABASE_URL
+  const arquivoProducao = path.join(__dirname, '.env');
+  if (fs.existsSync(arquivoProducao)) {
+    const producao = dotenv.parse(fs.readFileSync(arquivoProducao));
+    if (producao.BANCO_DE_TESTE === 'sim') {
+      throw erro('o .env normal tem BANCO_DE_TESTE=sim; essa marca é exclusiva do .env.teste.');
+    }
+    const idTeste = identificarBanco(process.env.DATABASE_URL);
+    if (producao.DATABASE_URL && (producao.DATABASE_URL === process.env.DATABASE_URL ||
+        (idTeste && idTeste === identificarBanco(producao.DATABASE_URL)))) {
+      throw erro('o DATABASE_URL do .env.teste aponta para o mesmo banco do .env normal (produção).');
+    }
+    if (producao.PORT && Number(producao.PORT) === PORTA_API) {
+      throw erro(`o .env normal também usa a porta ${PORTA_API}; o servidor de teste precisa de uma porta só dele.`);
+    }
+  }
+
+  try {
+    await fetch(apiUrl, { signal: AbortSignal.timeout(5000) });
+  } catch (_) {
+    throw erro(`nenhum servidor respondeu em ${apiUrl}. Suba o servidor de teste antes: npm run servidor:teste`);
+  }
+  ambienteApiConferido = true;
+  return true;
 }
 
 
@@ -96,10 +154,26 @@ module.exports = defineConfig({
     defaultCommandTimeout: 8000,
     pageLoadTimeout: 60000,
     retries: { runMode: 1, openMode: 0 },
-    setupNodeEvents(on) {
+    // endereço do servidor de teste usado pelos testes de API (cypress/support/dados.js, via Cypress.expose).
+    // Não é segredo; segredos (DATABASE_URL, JWT_SECRET) ficam só no Node, dentro das tasks.
+    expose: { API_URL: `http://localhost:${PORTA_API}` },
+    setupNodeEvents(on, config) {
       iniciarServidorFront();
+      const apiUrl = config.expose.API_URL; // já considera um --expose API_URL=... vindo da linha de comando
+
+      // cypress run: se a execução inclui testes de API, confere o ambiente antes de começar
+      on('before:run', async (detalhes) => {
+        const specs = (detalhes && detalhes.specs) || [];
+        if (specs.some((s) => /(^|[\\/])e2e[\\/]api[\\/]/.test(s.relative || ''))) {
+          await conferirAmbienteApi(apiUrl);
+        }
+      });
 
       on('task', {
+        // chamada pelos testes de API (cypress/support/e2e.js) — cobre também o cypress open
+        conferirAmbienteApi() {
+          return conferirAmbienteApi(apiUrl);
+        },
         // consulta/alteração direta no banco de TESTE
         async bd({ sql, params }) {
           const r = await bancoDeTeste().query(sql, params || []);

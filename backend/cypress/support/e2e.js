@@ -5,3 +5,10 @@ import './comandos';
 Cypress.on('window:before:load', (win) => {
   win.API_URL = win.location.origin;
 });
+
+// testes de API: antes de tudo, confere se a URL e o banco são os de TESTE (ver cypress.config.js)
+before(() => {
+  if (/(^|\/)e2e\/api\//.test(Cypress.spec.relative.replace(/\\/g, '/'))) {
+    cy.task('conferirAmbienteApi', null, { log: false });
+  }
+});

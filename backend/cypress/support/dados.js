@@ -1,6 +1,6 @@
 // Dados compartilhados pelos testes.
-// Endereço do servidor de teste (npm run servidor:teste). Se mudar a PORT no .env.teste, mude aqui também.
-export const API_URL = 'http://localhost:3000';
+// Endereço do servidor de teste (npm run servidor:teste): vem da PORT do .env.teste, via cypress.config.js.
+export const API_URL = Cypress.expose('API_URL');
 // Mude para true só se o projeto de teste tiver um bucket de fotos configurado no .env.teste
 export const TESTAR_STORAGE = false;
 

@@ -422,6 +422,7 @@ async function abrirComprovante(agendamentoId, { aviso = '', avisarErro = true }
       ? `${formatarHora(c.horario_inicio)} às ${formatarHora(c.horario_fim)}`
       : formatarHora(c.horario_inicio));
     setTexto('compSituacao', c.situacao || '');
+    setTexto('compAgendado', c.agendado_em_local || '—'); // agendamentos antigos não têm criado_em
     setTexto('compEmitido', c.emitido_em_local || '');
 
     const avisoEl = document.getElementById('comprovanteAviso');
