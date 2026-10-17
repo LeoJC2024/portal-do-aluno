@@ -131,9 +131,10 @@ window.addEventListener('click', () => {
 
 function sairDaConta() {
   const sistema = document.body.dataset.sistema || 'sistema';
+  // a tela pode trocar a frase inteira (data-mensagem-sair no body); senão vale o texto padrão
   Swal.fire({
     title: 'Deseja sair?',
-    text: `Será desconectado do ${sistema}.`,
+    text: document.body.dataset.mensagemSair || `Será desconectado do ${sistema}.`,
     icon: 'warning',
     showCancelButton: true,
     confirmButtonColor: '#047857',

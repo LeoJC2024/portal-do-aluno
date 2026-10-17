@@ -1,10 +1,11 @@
 import { USUARIOS } from '../../support/dados';
-import { criarVaga, criarUsuarioAtivo, agendar, logsDeAuditoria } from '../../support/apiHelpers';
+import { criarVaga, criarUsuarioAtivo, agendar, logsDeAuditoria, inserirVagaNoBanco } from '../../support/apiHelpers';
 import { dataSP, dataBr, hojeSP } from '../../support/datas';
 
 describe('API: portaria (recepção)', () => {
   const t = {};
   let vaga;
+  let vagaHojeId;
   const data = dataSP(5);
 
   before(() => {
@@ -13,7 +14,12 @@ describe('API: portaria (recepção)', () => {
     cy.tokenDe(USUARIOS.recepcao).then((x) => { t.recepcao = x; });
     // cy.then: só roda depois que o token do coordenador já foi obtido
     cy.then(() => {
-      criarVaga(t.coord, { polo: 'Polo CY Portaria', data, limite_vagas: 60, horario_inicio: '08:00', horario_fim: '10:00' }).then((v) => { vaga = v; });
+      criarVaga(t.coord, { polo: 'Polo CY Portaria', data, limite_vagas: 60, horario_inicio: '08:00', horario_fim: '10:00' }).then((v) => {
+        vaga = v;
+        // mesma avaliação, HOJE, o dia inteiro (00:00 às 23:59): usada por paraHoje (ver abaixo)
+        inserirVagaNoBanco({ disciplina: v.disciplina, data: hojeSP(), inicio: '00:00', fim: '23:59', limite: 60, polo: 'Polo CY Portaria' })
+          .then((id) => { vagaHojeId = id; });
+      });
     });
   });
 
@@ -32,8 +38,11 @@ describe('API: portaria (recepção)', () => {
   const porData = (d, busca) =>
     cy.api('GET', `/api/portaria/por-data?data=${encodeURIComponent(d)}${busca !== undefined ? `&busca=${encodeURIComponent(busca)}` : ''}`, { token: t.recepcao });
   const confirmar = (ticket) => cy.api('POST', '/api/portaria/confirmar-entrada', { token: t.recepcao, body: { ticket_id: ticket } });
-  // a entrada só pode ser confirmada no dia da prova: traz o agendamento para hoje
-  const paraHoje = (ticket) => cy.bd('UPDATE agendamentos SET data_agendada = $2 WHERE id = $1', [ticket, hojeSP()]);
+  // a entrada só pode ser confirmada no dia da prova e até o TÉRMINO dela: move o agendamento para a vaga
+  // de hoje que vai das 00:00 às 23:59. Antes só mudava a data e a prova terminava às 10:00 (vaga original);
+  // com a regra nova, depois das 10:00 a confirmação seria recusada e o teste dependeria da hora em que roda
+  const paraHoje = (ticket) =>
+    cy.bd(`UPDATE agendamentos SET data_agendada = $2, horario_agendado = '00:00', vaga_id = $3 WHERE id = $1`, [ticket, hojeSP(), vagaHojeId]);
 
   describe('consulta por aluno', () => {
     it('busca pela matrícula e devolve aluno, foto, avaliação, data, horário e local', () => {

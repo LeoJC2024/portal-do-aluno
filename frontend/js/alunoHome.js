@@ -264,27 +264,34 @@ function renderizarCard(disciplina) {
   if (ag && situacao !== 'PENDENTE') return renderizarCardProvaPassada(disciplina, ag, situacao);
 
   if (ag) {
+    // a portaria já confirmou a entrada, mas a prova ainda não começou: o servidor não deixa mais
+    // reagendar nem cancelar, então o cartão só mostra o selo e o comprovante
+    const entrou = ag.entrada_confirmada === true;
+    const selo = entrou
+      ? '<div class="inline-block bg-sky-100 text-sky-800 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-sky-200"><i class="fa-solid fa-circle-check"></i> Entrada confirmada</div>'
+      : '<div class="inline-block bg-emerald-100 text-emerald-800 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-emerald-200">Agendamento Confirmado</div>';
     return `
-      <div class="task-item bg-slate-50 p-4 sm:p-5 rounded-xl border border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition hover:border-emerald-500">
+      <div class="task-item bg-slate-50 p-4 sm:p-5 rounded-xl border border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition hover:border-emerald-500"${entrou ? ' data-situacao="entrada-confirmada"' : ''}>
         <div class="space-y-1.5 flex-1">
           <h4 class="font-bold text-slate-900 text-sm sm:text-base">${escapeHtml(disciplina)} <span class="text-xs font-normal text-slate-500">(${escapeHtml(ag.polo || 'Polo Geral')})</span></h4>
-          <div class="inline-block bg-emerald-100 text-emerald-800 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-emerald-200">Agendamento Confirmado</div>
+          ${selo}
           <div class="text-xs text-slate-600 pt-1">
             <i class="fa-regular fa-calendar-days text-emerald-600"></i> <strong>Data/Hora:</strong>
             ${escapeHtml(formatarDataBr(ag.data_agendada))} às ${escapeHtml(faixaHorario(ag.horario_agendado, ag.horario_fim))}
           </div>
+          ${entrou ? '<div class="text-xs text-slate-500">A portaria já confirmou a sua entrada; não é mais possível reagendar ou cancelar.</div>' : ''}
         </div>
         <div class="w-full md:w-auto border-t md:border-t-0 pt-3 md:pt-0 border-slate-200 shrink-0">
           <div class="flex flex-wrap gap-2">
           <button data-acao="comprovante" data-id="${Number(ag.id)}" class="bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-medium px-3 py-2 rounded-lg text-xs transition flex items-center justify-center gap-1.5 cursor-pointer">
             <i class="fa-solid fa-receipt"></i> Comprovante
           </button>
-          <button data-acao="reagendar" data-id="${Number(ag.id)}" data-vaga="${Number(ag.vaga_id)}" data-disciplina="${escapeHtml(disciplina)}" class="bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 font-medium px-3 py-2 rounded-lg text-xs transition flex items-center justify-center gap-1.5 cursor-pointer">
+          ${entrou ? '' : `<button data-acao="reagendar" data-id="${Number(ag.id)}" data-vaga="${Number(ag.vaga_id)}" data-disciplina="${escapeHtml(disciplina)}" class="bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 font-medium px-3 py-2 rounded-lg text-xs transition flex items-center justify-center gap-1.5 cursor-pointer">
             <i class="fa-solid fa-rotate"></i> Reagendar
           </button>
           <button data-acao="cancelar" data-id="${Number(ag.id)}" class="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-medium px-3 py-2 rounded-lg text-xs transition flex items-center justify-center gap-1.5 cursor-pointer">
             <i class="fa-solid fa-trash-can"></i> Cancelar
-          </button>
+          </button>`}
           </div>
         </div>
       </div>`;

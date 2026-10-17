@@ -157,7 +157,10 @@ describe('API: lote A da varredura de falhas', () => {
         criarUsuarioAtivo(t.coord).then((aluno) => {
           agendar(aluno.token, v.id).then((r) => {
             const ticket = r.body.agendamento.id;
-            cy.bd('UPDATE agendamentos SET data_agendada = $2 WHERE id = $1', [ticket, hojeSP()]);
+            // a prova vai para hoje, das 00:00 às 23:59: com a regra nova a entrada só é aceita até o término,
+            // e a vaga padrão (08:00 às 10:00) faria o teste falhar quando rodasse depois das 10:00
+            cy.bd(`UPDATE vagas SET data_prova = $2, horario = '00:00', horario_fim = '23:59' WHERE id = $1`, [v.id, hojeSP()]);
+            cy.bd(`UPDATE agendamentos SET data_agendada = $2, horario_agendado = '00:00' WHERE id = $1`, [ticket, hojeSP()]);
             confirmar(ticket).its('status').should('eq', 200);
           });
         });

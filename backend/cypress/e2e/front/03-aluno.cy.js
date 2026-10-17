@@ -275,6 +275,43 @@ describe('Portal do aluno', () => {
       cy.get('#contadorTotalPendentes').should('have.text', '1');
     });
 
+    // A4: a portaria confirmou a entrada e a prova ainda não começou (o servidor manda PENDENTE + entrada_confirmada)
+    it('entrada confirmada antes do início: selo "Entrada confirmada", sem Reagendar/Cancelar e com Comprovante', () => {
+      abrir({
+        vagas: [vaga({ id: 2, disciplina: 'Banco de Dados' })],
+        agendamentos: [agendamento({ situacao: 'PENDENTE', entrada_confirmada: true })]
+      });
+      cy.contains('.task-item', 'Banco de Dados').should('have.attr', 'data-situacao', 'entrada-confirmada').within(() => {
+        cy.contains('Entrada confirmada');
+        cy.contains('11/12/2030 às 14:00 – 16:00');
+        cy.root().should('not.contain.text', 'Agendamento Confirmado').and('not.contain.text', 'Prova realizada');
+        cy.get('[data-acao="reagendar"], [data-acao="cancelar"], [data-acao="agendar"]').should('not.exist');
+        cy.get('[data-acao="comprovante"]').should('have.attr', 'data-id', '77');
+      });
+      cy.get('#contadorTotalPendentes').should('have.text', '1');
+    });
+
+    it('depois do início com entrada confirmada continua "Prova realizada" (o servidor manda REALIZADA)', () => {
+      abrir({ agendamentos: [agendamento({ situacao: 'REALIZADA', entrada_confirmada: true })] });
+      cy.contains('.task-item', 'Banco de Dados').should('have.attr', 'data-situacao', 'realizada').within(() => {
+        cy.contains('Prova realizada');
+        cy.root().should('not.contain.text', 'Entrada confirmada');
+        cy.get('[data-acao="reagendar"], [data-acao="cancelar"]').should('not.exist');
+      });
+    });
+
+    // critério novo: prova em andamento (começou, não terminou) sem entrada continua PENDENTE no servidor;
+    // a tela mostra o cartão normal (os botões existem, mas o servidor recusa por "já começou")
+    it('prova em andamento sem entrada (PENDENTE): cartão de agendamento, sem selo de entrada', () => {
+      abrir({ agendamentos: [agendamento({ situacao: 'PENDENTE', entrada_confirmada: false })] });
+      cy.contains('.task-item', 'Banco de Dados').within(() => {
+        cy.contains('Agendamento Confirmado');
+        cy.root().should('not.contain.text', 'Entrada confirmada').and('not.contain.text', 'Prova encerrada');
+        cy.get('[data-acao="comprovante"]').should('exist');
+      });
+      cy.get('#contadorTotalPendentes').should('have.text', '1');
+    });
+
     it('disciplina e polo com HTML no cartão de prova passada são exibidos como texto', () => {
       const malicioso = '<img src=x onerror="window.__xss=1">';
       abrir({ agendamentos: [passado({ situacao: 'REALIZADA', disciplina: malicioso, polo: malicioso })] });

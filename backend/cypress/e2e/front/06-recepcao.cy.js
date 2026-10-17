@@ -372,3 +372,145 @@ describe('Recepção: lista do dia (carrega sozinha) e polo', () => {
     cy.get('#infoPolo').should('contain.text', 'todos');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Correções dos testes exploratórios da RECEPÇÃO
+describe('Recepção: aluno com várias provas no dia (A1)', () => {
+  beforeEach(abrir);
+
+  const doAluno = (o) => linha({ usuario_id: 1, matricula: 'E00001', aluno_nome: 'Leonardo José', ...o });
+  const tresProvas = [
+    doAluno({ ticket_id: 21, disciplina: 'Redes', horario_agendado: '08:00:00', horario_fim: '09:00:00', momento_prova: 'encerrada' }),
+    doAluno({ ticket_id: 22, disciplina: 'Cálculo', horario_agendado: '10:00:00', horario_fim: '11:00:00', momento_prova: 'em_andamento' }),
+    doAluno({ ticket_id: 23, disciplina: 'Física', horario_agendado: '14:00:00', horario_fim: '15:00:00', momento_prova: 'futura' })
+  ];
+
+  it('busca exata com 3 provas: lista as 3 em ordem, NÃO abre a mais cedo sozinha e destaca a prova atual', () => {
+    mockPorNome(tresProvas);
+    cy.get('#inputBusca').type('E00001');
+    cy.get('#btnConsultar').click();
+
+    cy.contains('1 aluno(s) encontrado(s)');
+    cy.get('[data-abrir-aluno]').should('have.length', 3).then(($l) => {
+      expect([...$l].map((el) => el.textContent.match(/Redes|Cálculo|Física/)[0])).to.deep.eq(['Redes', 'Cálculo', 'Física']);
+    });
+    cy.get('#modalAluno').should('have.class', 'hidden');
+    cy.get('[data-destaque]').should('have.length', 1).and('contain.text', 'Prova atual').and('contain.text', 'Cálculo');
+
+    cy.get('[data-destaque]').click();
+    cy.get('#modalAluno').should('have.class', 'flex').and('contain.text', 'TICKET #22');
+    cy.get('#modalAluno').contains('button', 'Confirmar Entrada').should('be.visible');
+  });
+
+  it('sem prova em andamento: destaca a próxima', () => {
+    mockPorNome([tresProvas[0], tresProvas[2]]);
+    cy.get('#inputBusca').type('E00001');
+    cy.get('#btnConsultar').click();
+    cy.get('[data-abrir-aluno]').should('have.length', 2);
+    cy.get('[data-destaque]').should('have.length', 1).and('contain.text', 'Próxima prova').and('contain.text', 'Física');
+  });
+
+  it('prova que já terminou: o modal avisa e não oferece "Confirmar Entrada"', () => {
+    mockPorNome(tresProvas);
+    cy.get('#inputBusca').type('E00001');
+    cy.get('#btnConsultar').click();
+    cy.contains('[data-abrir-aluno]', 'Redes').click();
+    cy.get('#modalAluno').should('contain.text', 'O horário desta prova já terminou às 09:00');
+    cy.get('#modalAluno').contains('button', 'Confirmar Entrada').should('not.exist');
+  });
+
+  it('uma só prova: continua abrindo a confirmação direto, sem selo de destaque', () => {
+    mockPorNome([tresProvas[1]]);
+    cy.get('#inputBusca').type('E00001');
+    cy.get('#btnConsultar').click();
+    cy.get('#modalAluno').should('have.class', 'flex').and('contain.text', 'TICKET #22');
+    cy.get('[data-destaque]').should('not.exist');
+  });
+});
+
+describe('Recepção: textos e rótulos (testes exploratórios)', () => {
+  it('enquanto pesquisa mostra "Pesquisando no sistema..."', () => {
+    abrir();
+    cy.intercept({ method: 'GET', pathname: '/api/portaria/consultar' }, { delay: 800, body: { encontrado: false } }).as('lenta');
+    cy.get('#inputBusca').type('Leonardo');
+    cy.get('#btnConsultar').click();
+    cy.contains('Pesquisando no sistema...');
+    cy.contains('A pesquisar').should('not.exist');
+    cy.wait('@lenta');
+  });
+
+  it('API fora do ar na consulta: mensagem em português, sem "Failed to fetch"', () => {
+    abrir();
+    cy.intercept({ method: 'GET', pathname: '/api/portaria/consultar' }, { forceNetworkError: true });
+    cy.get('#inputBusca').type('Leonardo');
+    cy.get('#btnConsultar').click();
+    cy.contains('Erro na consulta');
+    cy.contains('Não foi possível conectar ao servidor. Tente novamente.');
+    cy.get('#containerResultado').should('not.contain.text', 'Failed to fetch');
+  });
+
+  it('API fora do ar ao abrir a lista do dia: mesma mensagem em português', () => {
+    cy.stubApiGeral();
+    cy.mockApi('GET', '/api/perfil', { polo: null });
+    cy.intercept({ method: 'GET', pathname: '/api/portaria/por-data' }, { forceNetworkError: true });
+    cy.abrirPagina('recepcaoHome.html', SESSOES.recepcao);
+    cy.contains('Erro ao carregar a lista do dia');
+    cy.contains('Não foi possível conectar ao servidor. Tente novamente.');
+    cy.get('#containerResultado').should('not.contain.text', 'Failed to fetch');
+  });
+
+  it('API fora do ar ao confirmar a entrada: mensagem em português', () => {
+    abrir({ lista: [linha()] });
+    cy.intercept({ method: 'POST', pathname: '/api/portaria/confirmar-entrada' }, { forceNetworkError: true });
+    cy.contains('[data-abrir-aluno]', 'Leonardo José').click();
+    cy.get('#modalAluno').contains('button', 'Confirmar Entrada').click();
+    cy.swal('Erro na Confirmação', 'Não foi possível conectar ao servidor. Tente novamente.');
+    cy.get('.swal2-html-container').should('not.contain.text', 'Failed to fetch');
+  });
+
+  it('o HTML não traz o nome de um polo fixo: "Recepção" até a sessão carregar', () => {
+    cy.request('/recepcaoHome.html').its('body').then((html) => {
+      expect(html).to.not.contain('Polo Resende');
+      expect(html).to.match(/id="userName">Recepção<\/p>/);
+    });
+  });
+
+  it('sem sessão (ex.: voltar depois de Sair) mostra "Recepção", nunca o nome de outra sessão', () => {
+    cy.stubApiGeral();
+    cy.abrirPagina('recepcaoHome.html');
+    cy.swal('Acesso Negado');
+    cy.get('#userName').should('have.text', 'Recepção');
+  });
+
+  [[360, 640], [768, 1024], [1023, 768], [1366, 768]].forEach(([w, h]) => {
+    it(`a etiqueta "CONSULTA E VALIDAÇÃO" fica visível em ${w}px sem estourar a barra`, () => {
+      cy.viewport(w, h);
+      abrir();
+      cy.get('#seloConsulta').should('be.visible').and('contain.text', 'CONSULTA').and('contain.text', 'VALIDAÇÃO');
+      cy.get('#seloConsulta').then(($s) => {
+        const caixa = $s[0].getBoundingClientRect();
+        expect(caixa.right, 'dentro da tela').to.be.at.most(w);
+        expect(caixa.top, 'dentro da barra').to.be.at.least(0);
+        expect(caixa.bottom, 'dentro da barra').to.be.at.most(80);
+      });
+      cy.get('header').then(($h) => expect($h[0].getBoundingClientRect().height).to.eq(80));
+      cy.document().then((d) => expect(d.documentElement.scrollWidth).to.be.at.most(d.documentElement.clientWidth));
+    });
+  });
+
+  [[375, 667], [1366, 768]].forEach(([w, h]) => {
+    it(`nome longo sem espaços não vaza do modal nem espreme a foto (${w}px)`, () => {
+      cy.viewport(w, h);
+      abrir({ lista: [linha({ aluno_nome: 'A'.repeat(150), foto_url: null, disciplina: 'D'.repeat(120), curso: 'C'.repeat(120) })] });
+      cy.get('[data-abrir-aluno]').click();
+      cy.get('#modalAluno .modal-corpo').should('be.visible').then(($m) => {
+        expect($m[0].scrollWidth, 'sem rolagem horizontal no modal').to.be.at.most($m[0].clientWidth);
+        const direitaModal = $m[0].getBoundingClientRect().right;
+        cy.get('#modalNomeAluno').then(($n) => {
+          expect($n[0].getBoundingClientRect().right, 'nome dentro do modal').to.be.at.most(direitaModal);
+        });
+      });
+      cy.get('#modalAluno .modal-corpo .w-24').should('have.css', 'width', '96px');
+    });
+  });
+});

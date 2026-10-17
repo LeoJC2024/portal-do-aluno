@@ -35,4 +35,31 @@ export function vagaHojeNoFuturo() {
   return { data: agora.data, inicio: '23:58', fim: '23:59' };
 }
 
+// prova de HOJE em andamento: começou há 1h (ou à 00:00) e termina daqui a 1h (ou às 23:59).
+// Antes das 00:05 e a partir das 23:55 devolve null (sem folga segura; quem chamar pula o teste)
+export function vagaEmAndamento() {
+  const agora = partes(Date.now());
+  if (agora.hora < '00:05' || agora.hora >= '23:55') return null;
+  const ini = partes(Date.now() - 3600000);
+  const fim = partes(Date.now() + 3600000);
+  return {
+    data: agora.data,
+    inicio: ini.data === agora.data ? ini.hora : '00:00',
+    fim: fim.data === agora.data ? fim.hora : '23:59'
+  };
+}
+
+// prova de HOJE que já terminou: termina 5 min atrás e começa 1h antes disso (ou à 00:00).
+// Antes das 00:10 devolve null (não há prova de hoje que já tenha terminado com folga)
+export function vagaHojeTerminada() {
+  const agora = partes(Date.now());
+  if (agora.hora < '00:10') return null;
+  const ini = partes(Date.now() - 65 * 60000);
+  return {
+    data: agora.data,
+    inicio: ini.data === agora.data ? ini.hora : '00:00',
+    fim: partes(Date.now() - 5 * 60000).hora
+  };
+}
+
 export const dataBr = (iso) => iso.split('-').reverse().join('/');

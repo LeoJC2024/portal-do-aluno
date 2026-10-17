@@ -45,6 +45,20 @@ window.addEventListener('DOMContentLoaded', () => {
   });
 });
 
+// página restaurada pelo botão Voltar (cache do navegador) depois de Sair: sem sessão, recarrega para
+// cair na checagem de login em vez de continuar mostrando os dados da sessão anterior
+window.addEventListener('pageshow', (e) => {
+  if (e.persisted && !localStorage.getItem('unifaa_token')) window.location.reload();
+});
+
+// fetch sem resposta do servidor (API fora do ar, sem rede) lança TypeError ("Failed to fetch"):
+// mostra uma mensagem em português em vez do texto técnico do navegador
+const MENSAGEM_SEM_CONEXAO = 'Não foi possível conectar ao servidor. Tente novamente.';
+function textoDoErro(error) {
+  if (error instanceof TypeError) return MENSAGEM_SEM_CONEXAO;
+  return error?.message || MENSAGEM_SEM_CONEXAO;
+}
+
 // ==========================================
 // CONSULTA UNIFICADA (aluno e/ou data)
 // ==========================================
@@ -100,7 +114,7 @@ async function consultar(opcoes = {}) {
   }
 
   const minha = ++versaoResultado;
-  container.innerHTML = mensagemCarregando('A pesquisar no sistema...');
+  container.innerHTML = mensagemCarregando('Pesquisando no sistema...');
 
   try {
     let lista;
@@ -140,7 +154,7 @@ async function consultar(opcoes = {}) {
     if (!data && lista.length === 1 && opcoes.abrirAutomatico !== false) abrirModalAluno(0);
   } catch (error) {
     console.error(error);
-    container.innerHTML = mensagemErro('Erro na consulta', error.message);
+    container.innerHTML = mensagemErro('Erro na consulta', textoDoErro(error));
   }
 }
 
@@ -163,12 +177,15 @@ function renderizarLista(lista, resumo) {
          </div>
        </div>`
     : `<div class="pb-4 border-b border-slate-100">
-         <h3 class="text-lg font-bold text-slate-900">${lista.length} aluno(s) encontrado(s)</h3>
+         <h3 class="text-lg font-bold text-slate-900">${totalDeAlunos(lista)} aluno(s) encontrado(s)</h3>
        </div>`;
+
+  const destaques = provasEmDestaque(lista);
 
   const linhas = lista.map((ag, i) => {
     const st = statusDoAluno(ag);
     const temAg = ag.ticket_id !== null && ag.ticket_id !== undefined;
+    const destaque = destaques.get(i);
     const foto = urlSegura(ag.foto_url);
     const nome = ag.aluno_nome || 'Estudante';
 
@@ -180,12 +197,20 @@ function renderizarLista(lista, resumo) {
       ? `${escapeHtml(ag.disciplina)} · ${escapeHtml(formatarDataBr(ag.data_agendada))} ${escapeHtml(faixaHorario(ag.horario_agendado, ag.horario_fim))}`
       : 'Sem agendamento ativo a partir de hoje';
 
+    const fundo = destaque
+      ? 'bg-emerald-50 border-emerald-500 ring-1 ring-emerald-500'
+      : 'bg-slate-50 border-slate-200';
+    const seloDestaque = destaque
+      ? `<span class="inline-block mb-0.5 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-full bg-emerald-600 text-white">${destaque}</span>`
+      : '';
+
     return `
-      <button type="button" data-abrir-aluno="${i}"
-        class="w-full text-left flex items-center justify-between gap-3 p-3 bg-slate-50 hover:bg-emerald-50 rounded-xl border border-slate-200 hover:border-emerald-400 transition cursor-pointer">
+      <button type="button" data-abrir-aluno="${i}"${destaque ? ' data-destaque="sim"' : ''}
+        class="w-full text-left flex items-center justify-between gap-3 p-3 ${fundo} hover:bg-emerald-50 rounded-xl border hover:border-emerald-400 transition cursor-pointer">
         <div class="flex items-center gap-3 min-w-0">
           ${avatar}
           <div class="min-w-0">
+            ${seloDestaque}
             <p class="text-sm font-bold text-emerald-800 underline decoration-dotted truncate">${escapeHtml(nome)}</p>
             <p class="text-xs text-slate-500 truncate">Matrícula <span class="font-mono">${escapeHtml(ag.matricula || 'N/A')}</span> · ${detalhe}</p>
           </div>
@@ -199,6 +224,33 @@ function renderizarLista(lista, resumo) {
       ${cabecalho}
       <div class="space-y-2 max-h-[28rem] overflow-y-auto pr-1">${linhas}</div>
     </div>`;
+}
+
+// a consulta por nome/matrícula devolve uma linha por prova: conta os alunos, não as linhas
+function totalDeAlunos(lista) {
+  return new Set(lista.map((ag, i) => ag.matricula || ag.usuario_id || `linha-${i}`)).size;
+}
+
+// aluno com mais de uma prova no dia (consulta por nome/matrícula, que traz momento_prova): destaca a
+// prova em andamento ou, se nenhuma estiver, a próxima. Devolve Map(índice da linha -> rótulo do selo)
+function provasEmDestaque(lista) {
+  const porAluno = new Map();
+  lista.forEach((ag, i) => {
+    if (ag.ticket_id === null || ag.ticket_id === undefined || !ag.momento_prova) return;
+    const chave = ag.matricula || ag.usuario_id;
+    if (!porAluno.has(chave)) porAluno.set(chave, []);
+    porAluno.get(chave).push(i);
+  });
+
+  const destaques = new Map();
+  porAluno.forEach((indices) => {
+    if (indices.length < 2) return;
+    const atual = indices.find((i) => lista[i].momento_prova === 'em_andamento');
+    const proxima = indices.find((i) => lista[i].momento_prova === 'futura');
+    if (atual !== undefined) destaques.set(atual, 'Prova atual');
+    else if (proxima !== undefined) destaques.set(proxima, 'Próxima prova');
+  });
+  return destaques;
 }
 
 // ==========================================
@@ -225,6 +277,9 @@ function abrirModalAluno(indice) {
   } else if (jaEntrou) {
     const hora = new Date(ag.entrada_confirmada_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
     rodape = `<span class="text-xs text-emerald-700 font-semibold"><i class="fa-solid fa-circle-check"></i> Entrada já confirmada às ${escapeHtml(hora)}</span>`;
+  } else if (ag.momento_prova === 'encerrada' && !naoEhHoje) {
+    // o servidor recusa a confirmação depois do término; a tela já avisa em vez de oferecer o botão
+    rodape = `<span class="text-xs text-rose-700 font-semibold"><i class="fa-solid fa-clock"></i> O horário desta prova já terminou${ag.horario_fim ? ` às ${escapeHtml(formatarHora(ag.horario_fim))}` : ''}. A entrada não pode mais ser confirmada.</span>`;
   } else {
     rodape = `
       <span class="text-xs text-slate-500">Documento com foto conferido?</span>
@@ -247,21 +302,21 @@ function abrirModalAluno(indice) {
       </div>
 
       <div class="flex items-center gap-4 mb-5">
-        ${avatar}
-        <div>
-          <h3 class="text-xl font-bold text-slate-900 leading-tight">${escapeHtml(nome)}</h3>
-          <p class="text-xs text-slate-500 mt-1">Matrícula: <strong class="text-slate-700 font-mono">${escapeHtml(ag.matricula || 'N/A')}</strong></p>
-          <p class="text-xs text-slate-500">${escapeHtml(ag.curso || 'Curso não informado')}</p>
+        <div class="shrink-0">${avatar}</div>
+        <div class="min-w-0">
+          <h3 id="modalNomeAluno" class="text-xl font-bold text-slate-900 leading-tight [overflow-wrap:anywhere] line-clamp-3" title="${escapeHtml(nome)}">${escapeHtml(nome)}</h3>
+          <p class="text-xs text-slate-500 mt-1 [overflow-wrap:anywhere]">Matrícula: <strong class="text-slate-700 font-mono">${escapeHtml(ag.matricula || 'N/A')}</strong></p>
+          <p class="text-xs text-slate-500 [overflow-wrap:anywhere]">${escapeHtml(ag.curso || 'Curso não informado')}</p>
         </div>
       </div>
 
       <div class="bg-slate-50 p-4 rounded-xl space-y-2 text-sm border border-slate-200 mb-4">
-        <p class="flex justify-between gap-3"><span class="text-slate-500">Avaliação:</span>
-          <strong class="text-slate-800 text-right">${escapeHtml(temAg ? ag.disciplina : 'Nenhuma avaliação agendada')}</strong></p>
-        <p class="flex justify-between gap-3"><span class="text-slate-500">Data e Horário:</span>
-          <strong class="text-slate-800 text-right">${temAg ? `${escapeHtml(formatarDataBr(ag.data_agendada))} · ${escapeHtml(faixaHorario(ag.horario_agendado, ag.horario_fim))}` : '—'}</strong></p>
-        <p class="flex justify-between gap-3"><span class="text-slate-500">Local Alocado:</span>
-          <strong class="text-slate-800 text-right">${escapeHtml(temAg ? ag.polo : '—')}</strong></p>
+        <p class="flex justify-between gap-3"><span class="text-slate-500 shrink-0">Avaliação:</span>
+          <strong class="text-slate-800 text-right min-w-0 [overflow-wrap:anywhere]">${escapeHtml(temAg ? ag.disciplina : 'Nenhuma avaliação agendada')}</strong></p>
+        <p class="flex justify-between gap-3"><span class="text-slate-500 shrink-0">Data e Horário:</span>
+          <strong class="text-slate-800 text-right min-w-0">${temAg ? `${escapeHtml(formatarDataBr(ag.data_agendada))} · ${escapeHtml(faixaHorario(ag.horario_agendado, ag.horario_fim))}` : '—'}</strong></p>
+        <p class="flex justify-between gap-3"><span class="text-slate-500 shrink-0">Local Alocado:</span>
+          <strong class="text-slate-800 text-right min-w-0 [overflow-wrap:anywhere]">${escapeHtml(temAg ? ag.polo : '—')}</strong></p>
       </div>
 
       ${naoEhHoje ? `<div class="bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-lg p-3 mb-4">
@@ -310,7 +365,7 @@ async function confirmarEntrada(ticketId, nomeAluno, botao) {
     Swal.fire({
       icon: 'error',
       title: 'Erro na Confirmação',
-      text: error.message,
+      text: textoDoErro(error),
       confirmButtonColor: '#047857'
     });
   }
@@ -346,7 +401,7 @@ async function carregarListaDoDia() {
     container.innerHTML = renderizarLista(dados.alunos, { total: dados.total, presentes: dados.presentes, data: hoje, titulo: 'Lista do dia — hoje' });
   } catch (error) {
     console.error(error);
-    container.innerHTML = mensagemErro('Erro ao carregar a lista do dia', error.message);
+    container.innerHTML = mensagemErro('Erro ao carregar a lista do dia', textoDoErro(error));
   }
 }
 

@@ -3,7 +3,8 @@ import { SESSOES } from '../../support/dados';
 const PAGINAS = {
   aluno: { arquivo: 'alunoHome.html', sistema: 'Portal do Aluno' },
   coordenador: { arquivo: 'coordenadorHome.html', sistema: 'Gestão Acadêmica' },
-  recepcao: { arquivo: 'recepcaoHome.html', sistema: 'painel de portaria' },
+  // a recepção usa a frase completa "Você será desconectado do painel da portaria." (pedido dos testes exploratórios)
+  recepcao: { arquivo: 'recepcaoHome.html', sistema: 'painel da portaria', mensagemSair: 'Você será desconectado do painel da portaria.' },
   audit: { arquivo: 'auditHome.html', sistema: 'sistema de auditoria' }
 };
 
@@ -48,7 +49,7 @@ describe('Sessão expirada', () => {
 });
 
 describe('Menu do usuário e sair', () => {
-  Object.entries(PAGINAS).forEach(([chave, { arquivo, sistema }]) => {
+  Object.entries(PAGINAS).forEach(([chave, { arquivo, sistema, mensagemSair }]) => {
     context(arquivo, () => {
       beforeEach(() => {
         cy.stubApiGeral();
@@ -64,7 +65,7 @@ describe('Menu do usuário e sair', () => {
 
       it('sair pede confirmação, cita o sistema e limpa a sessão', () => {
         cy.get('#userDropdown').contains(/Sair/).click();
-        cy.swal('Deseja sair?', `Será desconectado do ${sistema}.`);
+        cy.swal('Deseja sair?', mensagemSair || `Será desconectado do ${sistema}.`);
         cy.confirmarSwal();
         cy.location('pathname').should('eq', '/login.html');
         cy.window().then((win) => {

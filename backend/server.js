@@ -271,6 +271,15 @@ const dataValida = (s) =>
   !Number.isNaN(Date.parse(`${s}T00:00:00Z`)) &&
   new Date(`${s}T00:00:00Z`).toISOString().slice(0, 10) === s;
 const horaValida = (s) => /^([01]\d|2[0-3]):[0-5]\d$/.test(s);
+// data usada como filtro de consulta: o ano 0000 passa no dataValida, mas o Postgres não aceita (daria erro 500)
+const dataDeFiltroValida = (s) => dataValida(s) && s >= '1900-01-01';
+
+// início e término da prova de um agendamento, como instantes no fuso de São Paulo. Usam os apelidos
+// "a" (agendamentos) e "v" (vagas); "fuso" é o parâmetro da consulta com o FUSO (ex.: '$3').
+// A prova "passou" quando o TÉRMINO passa; vaga antiga sem horário de fim termina no horário de início
+const sqlInicioProva = (fuso) => `((a.data_agendada::date + a.horario_agendado::time) AT TIME ZONE ${fuso})`;
+const sqlTerminoProva = (fuso) =>
+  `((a.data_agendada::date + COALESCE(v.horario_fim::time, a.horario_agendado::time)) AT TIME ZONE ${fuso})`;
 
 // regras para uma vaga poder receber um aluno (usada em agendar e reagendar)
 function validarVagaParaAgendar(vaga, usuario) {
@@ -1053,14 +1062,13 @@ app.post('/api/agendar', autenticar, exigirPerfil(PERFIL.ALUNO), rota(async (req
     const vaga = vagaQ.rows[0];
     validarVagaParaAgendar(vaga, req.usuario);
 
-    // prova que já passou sem entrada confirmada (o aluno faltou) não prende a disciplina;
+    // prova que já terminou sem entrada confirmada (o aluno faltou) não prende a disciplina;
     // o registro antigo continua como está
     const dup = await client.query(
       `SELECT 1 FROM agendamentos a
-         JOIN vagas v2 ON v2.id = a.vaga_id
-        WHERE a.usuario_id = $1 AND a.status = 'ATIVO' AND LOWER(TRIM(v2.disciplina)) = LOWER(TRIM($2))
-          AND NOT (a.entrada_confirmada_em IS NULL
-                   AND ((a.data_agendada::date + a.horario_agendado::time) AT TIME ZONE $3) <= NOW())`,
+         JOIN vagas v ON v.id = a.vaga_id
+        WHERE a.usuario_id = $1 AND a.status = 'ATIVO' AND LOWER(TRIM(v.disciplina)) = LOWER(TRIM($2))
+          AND NOT (a.entrada_confirmada_em IS NULL AND ${sqlTerminoProva('$3')} <= NOW())`,
       [req.usuario.id, vaga.disciplina, FUSO]
     );
     if (dup.rows.length > 0) throw new ErroHttp(409, 'Você já tem um agendamento ativo para esta avaliação.');
@@ -1224,14 +1232,16 @@ app.post('/api/reagendar', autenticar, exigirPerfil(PERFIL.ALUNO), rota(async (r
   }
 }));
 
-// situacao: PENDENTE (prova ainda não começou), REALIZADA (já passou e a portaria confirmou a entrada)
-// ou ENCERRADA (já passou sem entrada confirmada). A hora da prova é comparada no fuso de São Paulo
+// situacao: REALIZADA (a portaria confirmou a entrada e a prova já começou), PENDENTE (prova ainda não
+// terminou, inclusive em andamento sem entrada ou com entrada confirmada antes do início) ou ENCERRADA
+// (terminou sem entrada confirmada). A hora da prova é comparada no fuso de São Paulo
 app.get('/api/meus-agendamentos', autenticar, exigirPerfil(PERFIL.ALUNO), rota(async (req, res) => {
   const { rows } = await pool.query(
     `SELECT a.id, a.vaga_id, a.data_agendada, a.horario_agendado, v.horario_fim, v.disciplina, v.polo,
+            (a.entrada_confirmada_em IS NOT NULL) AS entrada_confirmada,
             CASE
-              WHEN ((a.data_agendada::date + a.horario_agendado::time) AT TIME ZONE $2) > NOW() THEN 'PENDENTE'
-              WHEN a.entrada_confirmada_em IS NOT NULL THEN 'REALIZADA'
+              WHEN a.entrada_confirmada_em IS NOT NULL AND ${sqlInicioProva('$2')} <= NOW() THEN 'REALIZADA'
+              WHEN ${sqlTerminoProva('$2')} > NOW() THEN 'PENDENTE'
               ELSE 'ENCERRADA'
             END AS situacao
        FROM agendamentos a
@@ -1430,26 +1440,45 @@ app.get('/api/portaria/consultar', autenticar, exigirPerfil(PERFIL.RECEPCAO), ro
   }
   exigirTamanho('A busca', busca, LIMITE.BUSCA);
 
+  // até 10 alunos; de cada um, TODAS as provas do primeiro dia com prova a partir de hoje (uma linha por
+  // prova, em ordem de horário). momento_prova (futura / em_andamento / encerrada) deixa a tela destacar
+  // a prova atual ou a próxima quando o aluno tem mais de uma no dia
   const { rows } = await pool.query(
-    `SELECT u.id AS usuario_id, u.nome AS aluno_nome, u.matricula, u.curso, u.foto_url,
+    `WITH alunos AS (
+       SELECT u.id, u.nome, u.matricula, u.curso, u.foto_url, (LOWER(u.matricula) = LOWER($1)) AS exato
+         FROM usuarios u
+        WHERE LOWER(TRIM(u.tipo)) = 'aluno' AND u.ativo
+          AND (LOWER(u.matricula) = LOWER($1) OR u.nome ILIKE $3)
+        ORDER BY exato DESC, u.nome
+        LIMIT 10
+     )
+     SELECT al.id AS usuario_id, al.nome AS aluno_nome, al.matricula, al.curso, al.foto_url,
             ag.id AS ticket_id, ag.data_agendada, ag.horario_agendado, ag.entrada_confirmada_em,
-            ag.disciplina, ag.polo, ag.horario_fim
-       FROM usuarios u
+            ag.disciplina, ag.polo, ag.horario_fim, ag.momento_prova
+       FROM alunos al
        LEFT JOIN LATERAL (
-         SELECT a.id, a.data_agendada, a.horario_agendado, a.entrada_confirmada_em, v.disciplina, v.polo, v.horario_fim
+         SELECT a.id, a.data_agendada, a.horario_agendado, a.entrada_confirmada_em, v.disciplina, v.polo, v.horario_fim,
+                CASE
+                  WHEN ${sqlTerminoProva('$4')} <= NOW() THEN 'encerrada'
+                  WHEN ${sqlInicioProva('$4')} <= NOW() THEN 'em_andamento'
+                  ELSE 'futura'
+                END AS momento_prova
            FROM agendamentos a
            JOIN vagas v ON v.id = a.vaga_id
-          WHERE a.usuario_id = u.id
+          WHERE a.usuario_id = al.id
             AND a.status = 'ATIVO'
-            AND a.data_agendada::date >= (NOW() AT TIME ZONE $4)::date
             AND ($2::text IS NULL OR v.polo = $2)
-          ORDER BY a.data_agendada, a.horario_agendado
-          LIMIT 1
+            AND a.data_agendada::date = (
+              SELECT MIN(a2.data_agendada::date)
+                FROM agendamentos a2
+                JOIN vagas v2 ON v2.id = a2.vaga_id
+               WHERE a2.usuario_id = al.id
+                 AND a2.status = 'ATIVO'
+                 AND a2.data_agendada::date >= (NOW() AT TIME ZONE $4)::date
+                 AND ($2::text IS NULL OR v2.polo = $2)
+            )
        ) ag ON TRUE
-      WHERE LOWER(TRIM(u.tipo)) = 'aluno' AND u.ativo
-        AND (LOWER(u.matricula) = LOWER($1) OR u.nome ILIKE $3)
-      ORDER BY (LOWER(u.matricula) = LOWER($1)) DESC, u.nome
-      LIMIT 10`,
+      ORDER BY al.exato DESC, al.nome, al.id, ag.horario_agendado, ag.id`,
     [busca, req.usuario.polo, `%${escapeLike(busca)}%`, FUSO]
   );
 
@@ -1463,8 +1492,8 @@ app.get('/api/portaria/por-data', autenticar, exigirPerfil(PERFIL.RECEPCAO), rot
   let data = String(req.query.data ?? '').trim();
   const busca = String(req.query.busca ?? '').trim();
   if (/^\d{2}\/\d{2}\/\d{4}$/.test(data)) data = data.split('/').reverse().join('-');
-  if (!dataValida(data)) {
-    return res.status(400).json({ sucesso: false, mensagem: 'Data inválida.' });
+  if (!dataDeFiltroValida(data)) {
+    return res.status(400).json({ sucesso: false, mensagem: 'Data inválida. Informe uma data a partir de 01/01/1900 (AAAA-MM-DD ou DD/MM/AAAA).' });
   }
   exigirTamanho('A busca', busca, LIMITE.BUSCA);
 
@@ -1501,7 +1530,8 @@ app.post('/api/portaria/confirmar-entrada', autenticar, exigirPerfil(PERFIL.RECE
     return res.status(400).json({ sucesso: false, mensagem: 'Ticket inválido.' });
   }
 
-  // a entrada só pode ser confirmada no dia da prova (fuso de São Paulo)
+  // a entrada só pode ser confirmada no dia da prova (fuso de São Paulo), antes do início (aluno que
+  // chega cedo) ou durante a prova; depois do término, não
   const upd = await pool.query(
     `UPDATE agendamentos a
         SET entrada_confirmada_em = NOW(), entrada_confirmada_por = $2
@@ -1512,30 +1542,42 @@ app.post('/api/portaria/confirmar-entrada', autenticar, exigirPerfil(PERFIL.RECE
         AND a.entrada_confirmada_em IS NULL
         AND ($3::text IS NULL OR v.polo = $3)
         AND a.data_agendada::date = (NOW() AT TIME ZONE $4)::date
+        AND ${sqlTerminoProva('$4')} > NOW()
       RETURNING a.aluno_nome`,
     [ticketId, req.usuario.nome, req.usuario.polo, FUSO]
   );
 
   if (upd.rows.length === 0) {
-    const ja = await pool.query(
-      'SELECT entrada_confirmada_em FROM agendamentos WHERE id = $1 AND entrada_confirmada_em IS NOT NULL',
-      [ticketId]
-    );
-    if (ja.rows.length > 0) {
-      return res.status(409).json({ sucesso: false, mensagem: 'A entrada deste aluno já foi confirmada.' });
-    }
-    // existe e é deste polo, mas a prova não é hoje
-    const outroDia = await pool.query(
-      `SELECT a.data_agendada::date AS data FROM agendamentos a
+    // o motivo só é procurado entre os agendamentos ativos DESTE polo: ticket de outro polo recebe
+    // sempre o mesmo 404, esteja confirmado ou não (não revela o estado de tickets de outros polos)
+    const NAO_ENCONTRADO = { sucesso: false, mensagem: 'Agendamento ativo não encontrado para este polo.' };
+    const { rows } = await pool.query(
+      `SELECT a.data_agendada::date AS data,
+              (a.entrada_confirmada_em IS NOT NULL) AS ja_entrou,
+              (a.data_agendada::date = (NOW() AT TIME ZONE $3)::date) AS eh_hoje,
+              (${sqlTerminoProva('$3')} <= NOW()) AS terminou,
+              to_char(COALESCE(v.horario_fim::time, a.horario_agendado::time), 'HH24:MI') AS hora_fim
+         FROM agendamentos a
          JOIN vagas v ON v.id = a.vaga_id
         WHERE a.id = $1 AND a.status = 'ATIVO' AND ($2::text IS NULL OR v.polo = $2)`,
-      [ticketId, req.usuario.polo]
+      [ticketId, req.usuario.polo, FUSO]
     );
-    if (outroDia.rows.length > 0) {
-      const dataBr = String(outroDia.rows[0].data).split('-').reverse().join('/');
+    const ag = rows[0];
+    if (!ag) return res.status(404).json(NAO_ENCONTRADO);
+    if (ag.ja_entrou) {
+      return res.status(409).json({ sucesso: false, mensagem: 'A entrada deste aluno já foi confirmada.' });
+    }
+    if (!ag.eh_hoje) {
+      const dataBr = String(ag.data).split('-').reverse().join('/');
       return res.status(400).json({ sucesso: false, mensagem: `A entrada só pode ser confirmada no dia da prova (${dataBr}).` });
     }
-    return res.status(404).json({ sucesso: false, mensagem: 'Agendamento ativo não encontrado para este polo.' });
+    if (ag.terminou) {
+      return res.status(400).json({
+        sucesso: false,
+        mensagem: `O horário desta prova já terminou às ${ag.hora_fim}. A entrada não pode mais ser confirmada.`
+      });
+    }
+    return res.status(404).json(NAO_ENCONTRADO);
   }
 
   await registrarAuditoria(
@@ -1580,10 +1622,8 @@ function lerFiltrosAuditoria(query) {
 
   const dataInicio = parametroTexto(query, 'data_inicio', 'A data inicial', 10);
   const dataFim = parametroTexto(query, 'data_fim', 'A data final', 10);
-  // o ano 0000 passa no dataValida, mas o Postgres não aceita (daria erro 500)
-  const dataDoFiltro = (s) => dataValida(s) && s >= '1900-01-01';
-  if (dataInicio && !dataDoFiltro(dataInicio)) throw new ErroHttp(400, 'Data inicial inválida (use AAAA-MM-DD).');
-  if (dataFim && !dataDoFiltro(dataFim)) throw new ErroHttp(400, 'Data final inválida (use AAAA-MM-DD).');
+  if (dataInicio && !dataDeFiltroValida(dataInicio)) throw new ErroHttp(400, 'Data inicial inválida (use AAAA-MM-DD).');
+  if (dataFim && !dataDeFiltroValida(dataFim)) throw new ErroHttp(400, 'Data final inválida (use AAAA-MM-DD).');
   if (dataInicio && dataFim && dataInicio > dataFim) {
     throw new ErroHttp(400, 'A data inicial não pode ser depois da data final.');
   }
