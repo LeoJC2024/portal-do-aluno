@@ -181,6 +181,107 @@ describe('Portal do aluno', () => {
       cy.confirmarSwal();
       cy.swal('Ação Bloqueada', 'mais de 24 horas');
     });
+
+    it('entrada já confirmada continua como "Ação Bloqueada"', () => {
+      cy.mockApi('POST', '/api/cancelar-agendamento',
+        { sucesso: false, mensagem: 'A entrada nesta prova já foi confirmada pela portaria; não é possível cancelar.' }, { status: 400 });
+      cy.get('[data-acao="cancelar"]').click();
+      cy.confirmarSwal();
+      cy.swal('Ação Bloqueada', 'entrada nesta prova já foi confirmada');
+    });
+
+    it('aba desatualizada (agendamento já não existe): título neutro e a lista é recarregada', () => {
+      cy.mockApi('POST', '/api/cancelar-agendamento',
+        { sucesso: false, mensagem: 'Agendamento ativo não encontrado.' }, { status: 404, alias: 'cancelar' });
+      // a recarga devolve a lista atual (sem o agendamento cancelado na outra aba)
+      cy.mockApi('GET', '/api/meus-agendamentos', [], { alias: 'agsDepois' });
+      cy.get('[data-acao="cancelar"]').click();
+      cy.confirmarSwal();
+      cy.wait('@cancelar');
+      cy.swal('Agendamento não encontrado', 'Agendamento ativo não encontrado.');
+      cy.get('.swal2-title').should('not.contain.text', 'Bloqueada');
+      cy.wait(['@vagas', '@agsDepois']);
+      cy.contains('.task-item', 'Banco de Dados').should('not.contain.text', 'Agendamento Confirmado');
+      cy.get('[data-acao="cancelar"]').should('not.exist');
+    });
+  });
+
+  describe('prova que já passou', () => {
+    const passado = (o = {}) => agendamento({ data_agendada: dataSP(-1), horario_agendado: '08:00:00', horario_fim: '10:00:00', ...o });
+
+    it('sem entrada confirmada: "Prova encerrada", sem Reagendar/Cancelar e com Agendar para outro horário', () => {
+      abrir({ vagas: [vaga({ id: 2, disciplina: 'Banco de Dados' })], agendamentos: [passado({ situacao: 'ENCERRADA' })] });
+      cy.contains('.task-item', 'Banco de Dados').should('have.attr', 'data-situacao', 'encerrada').within(() => {
+        cy.contains('Prova encerrada');
+        cy.contains('não foi confirmada pela portaria');
+        cy.contains(`${dataSP(-1).split('-').reverse().join('/')} às 08:00 – 10:00`);
+        cy.root().should('not.contain.text', 'Agendamento Confirmado').and('not.contain.text', 'Prova realizada');
+        cy.get('[data-acao="reagendar"]').should('not.exist');
+        cy.get('[data-acao="cancelar"]').should('not.exist');
+        cy.get('[data-acao="agendar"]').should('not.be.disabled').and('contain.text', 'Agendar');
+      });
+      // a disciplina volta a ser pendente/disponível por causa das vagas, não do agendamento passado
+      cy.get('#contadorTotalPendentes').should('have.text', '1');
+      cy.get('#contadorDisponiveisAgendar').should('contain.text', '1 disponíveis');
+      cy.contains('.task-item', 'Banco de Dados').find('[data-acao="agendar"]').click();
+      cy.get('#tituloModalAgendamento').should('have.text', 'Agendar avaliação');
+      cy.get('#horarioSelect option[value="2"]').should('exist');
+    });
+
+    it('sem entrada e sem vagas futuras: só informa, sem botões de ação, e não conta como pendente', () => {
+      abrir({ agendamentos: [passado({ situacao: 'ENCERRADA' })] });
+      cy.contains('.task-item', 'Banco de Dados').within(() => {
+        cy.contains('Prova encerrada');
+        cy.get('[data-acao="reagendar"], [data-acao="cancelar"], [data-acao="agendar"]').should('not.exist');
+      });
+      cy.get('#contadorTotalPendentes').should('have.text', '0');
+      cy.get('#contadorDisponiveisAgendar').should('contain.text', '0 disponíveis');
+    });
+
+    it('com entrada confirmada: "Prova realizada", sem botões de ação, mesmo havendo vagas, e não conta como pendente', () => {
+      abrir({ vagas: [vaga({ id: 2, disciplina: 'Banco de Dados' })], agendamentos: [passado({ situacao: 'REALIZADA' })] });
+      cy.contains('.task-item', 'Banco de Dados').should('have.attr', 'data-situacao', 'realizada').within(() => {
+        cy.contains('Prova realizada');
+        cy.root().should('not.contain.text', 'Prova encerrada').and('not.contain.text', 'Agendamento Confirmado');
+        cy.get('[data-acao="reagendar"], [data-acao="cancelar"], [data-acao="agendar"]').should('not.exist');
+        cy.get('[data-acao="comprovante"]').should('exist');
+      });
+      cy.get('#contadorTotalPendentes').should('have.text', '0');
+      cy.get('#contadorDisponiveisAgendar').should('contain.text', '0 disponíveis');
+    });
+
+    it('faltou e já agendou outro horário: o cartão mostra o agendamento novo (pendente)', () => {
+      abrir({
+        vagas: [vaga({ id: 2, disciplina: 'Banco de Dados' })],
+        agendamentos: [passado({ id: 70, situacao: 'ENCERRADA' }), agendamento({ id: 77, situacao: 'PENDENTE' })]
+      });
+      cy.get('#listaVagasAluno .task-item').should('have.length', 1);
+      cy.contains('.task-item', 'Banco de Dados').within(() => {
+        cy.contains('Agendamento Confirmado');
+        cy.contains('11/12/2030 às 14:00 – 16:00');
+        cy.get('[data-acao="cancelar"]').should('have.attr', 'data-id', '77');
+      });
+      cy.get('#contadorTotalPendentes').should('have.text', '1');
+      cy.get('#contadorDisponiveisAgendar').should('contain.text', '0 disponíveis');
+    });
+
+    it('prova futura continua igual: "Agendamento Confirmado" com Reagendar e Cancelar, e conta como pendente', () => {
+      abrir({ vagas: [vaga({ id: 2, disciplina: 'Banco de Dados' })], agendamentos: [agendamento({ situacao: 'PENDENTE' })] });
+      cy.contains('.task-item', 'Banco de Dados').within(() => {
+        cy.contains('Agendamento Confirmado');
+        cy.get('[data-acao="reagendar"]').should('exist');
+        cy.get('[data-acao="cancelar"]').should('exist');
+      });
+      cy.get('#contadorTotalPendentes').should('have.text', '1');
+    });
+
+    it('disciplina e polo com HTML no cartão de prova passada são exibidos como texto', () => {
+      const malicioso = '<img src=x onerror="window.__xss=1">';
+      abrir({ agendamentos: [passado({ situacao: 'REALIZADA', disciplina: malicioso, polo: malicioso })] });
+      cy.get('#listaVagasAluno img').should('not.exist');
+      cy.contains('#listaVagasAluno', '<img src=x').should('exist');
+      cy.window().its('__xss').should('not.exist');
+    });
   });
 
   describe('resultados', () => {
@@ -206,6 +307,19 @@ describe('Portal do aluno', () => {
       abrir({ resultados: [{ avaliacao: 'Limite', polo: 'P', nota: '6.00' }] });
       cy.get('#cardResultados').click();
       cy.contains('#listaResultadosModal tr', 'Limite').should('contain.text', 'Aprovado');
+    });
+
+    it('enquanto carrega mostra "Carregando resultados..." (português do Brasil)', () => {
+      abrir();
+      cy.get('#listaResultadosModal').should('contain.text', 'Carregando resultados...');
+      cy.intercept({ method: 'GET', pathname: '/api/resultados' }, (req) => {
+        req.reply({ statusCode: 200, body: [], delay: 1000 });
+      }).as('resLento');
+      cy.get('#cardResultados').click();
+      cy.get('#listaResultadosModal').should('contain.text', 'Carregando resultados...');
+      cy.wait('@resLento');
+      cy.contains('Nenhum resultado lançado até o momento.');
+      cy.get('body').should('not.contain.text', 'A carregar');
     });
 
     it('sem resultados mostra mensagem', () => {
@@ -455,6 +569,11 @@ describe('Portal do aluno: comprovante do agendamento', () => {
         expect(print).to.contain('#modalComprovante');
         expect(print).to.contain('comprovante-aberto');
       });
+    });
+
+    it('a nota do fuso diz "Datas e horários no fuso de Brasília"', () => {
+      abrirPeloCartao();
+      cy.get('#modalComprovante').should('contain.text', 'Datas e horários no fuso de Brasília (America/Sao_Paulo).');
     });
 
     it('mostra "Agendado em" com data e hora do agendamento, junto de "Emitido em"', () => {

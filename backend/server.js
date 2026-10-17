@@ -1053,11 +1053,15 @@ app.post('/api/agendar', autenticar, exigirPerfil(PERFIL.ALUNO), rota(async (req
     const vaga = vagaQ.rows[0];
     validarVagaParaAgendar(vaga, req.usuario);
 
+    // prova que já passou sem entrada confirmada (o aluno faltou) não prende a disciplina;
+    // o registro antigo continua como está
     const dup = await client.query(
       `SELECT 1 FROM agendamentos a
          JOIN vagas v2 ON v2.id = a.vaga_id
-        WHERE a.usuario_id = $1 AND a.status = 'ATIVO' AND LOWER(TRIM(v2.disciplina)) = LOWER(TRIM($2))`,
-      [req.usuario.id, vaga.disciplina]
+        WHERE a.usuario_id = $1 AND a.status = 'ATIVO' AND LOWER(TRIM(v2.disciplina)) = LOWER(TRIM($2))
+          AND NOT (a.entrada_confirmada_em IS NULL
+                   AND ((a.data_agendada::date + a.horario_agendado::time) AT TIME ZONE $3) <= NOW())`,
+      [req.usuario.id, vaga.disciplina, FUSO]
     );
     if (dup.rows.length > 0) throw new ErroHttp(409, 'Você já tem um agendamento ativo para esta avaliação.');
 
@@ -1105,6 +1109,7 @@ app.post('/api/reagendar', autenticar, exigirPerfil(PERFIL.ALUNO), rota(async (r
   const atual = await pool.query(
     `SELECT a.id, a.vaga_id, v.disciplina, v.data_prova, v.horario,
             (a.entrada_confirmada_em IS NOT NULL) AS entrou,
+            ((a.data_agendada::date + a.horario_agendado::time) AT TIME ZONE $3) <= NOW() AS prova_passou,
             (((a.data_agendada::date + a.horario_agendado::time) AT TIME ZONE $3) - NOW()) >= INTERVAL '24 hours' AS pode_alterar
        FROM agendamentos a
        JOIN vagas v ON v.id = a.vaga_id
@@ -1116,6 +1121,18 @@ app.post('/api/reagendar', autenticar, exigirPerfil(PERFIL.ALUNO), rota(async (r
 
   if (ag.entrou) {
     return res.status(400).json({ sucesso: false, mensagem: 'A entrada nesta prova já foi confirmada pela portaria; não é possível reagendar.' });
+  }
+
+  if (ag.prova_passou) {
+    await registrarAuditoria(
+      pool, 'REAGENDAMENTO_BLOQUEADO',
+      `Tentativa de reagendamento negada (prova já iniciada ou passada) de ${ag.disciplina} pelo aluno ${req.usuario.nome}`,
+      req.usuario.nome, req.ip
+    );
+    return res.status(400).json({
+      sucesso: false,
+      mensagem: 'Ação Bloqueada: o horário desta prova já começou ou já passou; não é possível reagendar este agendamento.'
+    });
   }
 
   const bloquearPor24h = async () => {
@@ -1207,14 +1224,21 @@ app.post('/api/reagendar', autenticar, exigirPerfil(PERFIL.ALUNO), rota(async (r
   }
 }));
 
+// situacao: PENDENTE (prova ainda não começou), REALIZADA (já passou e a portaria confirmou a entrada)
+// ou ENCERRADA (já passou sem entrada confirmada). A hora da prova é comparada no fuso de São Paulo
 app.get('/api/meus-agendamentos', autenticar, exigirPerfil(PERFIL.ALUNO), rota(async (req, res) => {
   const { rows } = await pool.query(
-    `SELECT a.id, a.vaga_id, a.data_agendada, a.horario_agendado, v.horario_fim, v.disciplina, v.polo
+    `SELECT a.id, a.vaga_id, a.data_agendada, a.horario_agendado, v.horario_fim, v.disciplina, v.polo,
+            CASE
+              WHEN ((a.data_agendada::date + a.horario_agendado::time) AT TIME ZONE $2) > NOW() THEN 'PENDENTE'
+              WHEN a.entrada_confirmada_em IS NOT NULL THEN 'REALIZADA'
+              ELSE 'ENCERRADA'
+            END AS situacao
        FROM agendamentos a
        JOIN vagas v ON v.id = a.vaga_id
       WHERE a.usuario_id = $1 AND a.status = 'ATIVO'
       ORDER BY a.data_agendada, a.horario_agendado`,
-    [req.usuario.id]
+    [req.usuario.id, FUSO]
   );
   res.json(rows);
 }));
@@ -1295,6 +1319,7 @@ app.post('/api/cancelar-agendamento', autenticar, exigirPerfil(PERFIL.ALUNO), ro
   const { rows } = await pool.query(
     `SELECT a.id, v.disciplina,
             (a.entrada_confirmada_em IS NOT NULL) AS entrou,
+            ((a.data_agendada::date + a.horario_agendado::time) AT TIME ZONE $3) <= NOW() AS prova_passou,
             (((a.data_agendada::date + a.horario_agendado::time) AT TIME ZONE $3) - NOW()) >= INTERVAL '24 hours' AS pode_cancelar
        FROM agendamentos a
        JOIN vagas v ON v.id = a.vaga_id
@@ -1306,6 +1331,17 @@ app.post('/api/cancelar-agendamento', autenticar, exigirPerfil(PERFIL.ALUNO), ro
 
   if (ag.entrou) {
     return res.status(400).json({ sucesso: false, mensagem: 'A entrada nesta prova já foi confirmada pela portaria; não é possível cancelar.' });
+  }
+  if (ag.prova_passou) {
+    await registrarAuditoria(
+      pool, 'CANCELAMENTO_BLOQUEADO',
+      `Tentativa de cancelamento negada (prova já iniciada ou passada) de ${ag.disciplina} pelo aluno ${req.usuario.nome}`,
+      req.usuario.nome, req.ip
+    );
+    return res.status(400).json({
+      sucesso: false,
+      mensagem: 'Ação Bloqueada: o horário desta prova já começou ou já passou; não é possível cancelar este agendamento.'
+    });
   }
   if (!ag.pode_cancelar) {
     await registrarAuditoria(

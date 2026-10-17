@@ -60,6 +60,14 @@ describe('Auditoria (perfil AUDIT)', () => {
     });
   });
 
+  // a API devolve data_hora em UTC (ISO com "Z") e a tela mostra no fuso de São Paulo:
+  // o rótulo da coluna precisa dizer Brasília, não UTC
+  it('a coluna de data diz "Data e hora (Brasília)" e não "UTC"', () => {
+    abrir(resposta([log()]));
+    cy.get('#auditTable thead th').first().should('have.text', 'Data e hora (Brasília)');
+    cy.get('#auditTable thead').should('not.contain.text', 'UTC');
+  });
+
   it('log sem usuário aparece como "sistema"', () => {
     abrir(resposta([log({ usuario: null })]));
     cy.get('#auditTable tbody').should('contain.text', 'sistema');

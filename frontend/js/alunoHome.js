@@ -94,8 +94,15 @@ async function carregarVagas() {
       vagasPorDisciplina.get(v.disciplina).push(v);
     });
 
+    // um agendamento por disciplina: o pendente vale mais que o de prova realizada, que vale mais que o
+    // de prova encerrada; entre dois de prova já passada fica o mais recente (a lista vem em ordem de data)
     agendamentosPorDisciplina = new Map();
-    ra.dados.forEach((a) => agendamentosPorDisciplina.set(a.disciplina, a));
+    ra.dados.forEach((a) => {
+      const atual = agendamentosPorDisciplina.get(a.disciplina);
+      const pa = PRIORIDADE_SITUACAO[situacaoDe(a)];
+      const pAtual = atual ? PRIORIDADE_SITUACAO[situacaoDe(atual)] : -1;
+      if (pa > pAtual || (pa === pAtual && situacaoDe(a) !== 'PENDENTE')) agendamentosPorDisciplina.set(a.disciplina, a);
+    });
 
     const disciplinas = [...new Set([...vagasPorDisciplina.keys(), ...agendamentosPorDisciplina.keys()])]
       .sort((a, b) => a.localeCompare(b, 'pt-BR'));
@@ -111,7 +118,15 @@ async function carregarVagas() {
     }
 
     container.innerHTML = disciplinas.map(renderizarCard).join('');
-    atualizarContadores(disciplinas.length, disciplinas.filter((d) => !agendamentosPorDisciplina.has(d)).length);
+    // pendentes = provas agendadas que ainda não começaram + disciplinas livres para agendar
+    // (prova que já passou não conta; se o aluno faltou e há vagas, a disciplina volta a ser agendável)
+    const situacoes = disciplinas.map((d) => {
+      const ag = agendamentosPorDisciplina.get(d);
+      return { d, s: ag ? situacaoDe(ag) : null };
+    });
+    const agendadas = situacoes.filter((x) => x.s === 'PENDENTE').length;
+    const disponiveis = situacoes.filter((x) => (x.s === null || x.s === 'ENCERRADA') && vagasPorDisciplina.has(x.d)).length;
+    atualizarContadores(agendadas + disponiveis, disponiveis);
   } catch (error) {
     console.error('Erro ao carregar dados:', error);
     container.innerHTML = `
@@ -197,8 +212,56 @@ function renderizarAvisosAgendamento(vagas) {
   container.hidden = false;
 }
 
+// situação calculada pelo servidor (fuso de São Paulo); resposta sem o campo é tratada como pendente
+const PRIORIDADE_SITUACAO = { ENCERRADA: 0, REALIZADA: 1, PENDENTE: 2 };
+const situacaoDe = (ag) => (ag.situacao === 'REALIZADA' || ag.situacao === 'ENCERRADA' ? ag.situacao : 'PENDENTE');
+
+// botão "Agendar" de uma disciplina, conforme as vagas futuras dela
+function resumoVagas(disciplina) {
+  const vagas = vagasPorDisciplina.get(disciplina) || [];
+  const comVaga = vagas.filter((v) => v.agendamento_aberto !== false && v.vagas_restantes > 0).length;
+  const aAbrir = vagas.filter((v) => v.agendamento_aberto === false)
+    .sort((x, y) => String(x.agendamento_inicio).localeCompare(String(y.agendamento_inicio)));
+  const rotulo = comVaga > 0 ? 'Agendar' : (aAbrir.length ? `Abre em ${formatarDataBr(aAbrir[0].agendamento_inicio)}` : 'Sem vagas');
+  const botao = `
+        <button data-acao="agendar" data-disciplina="${escapeHtml(disciplina)}" ${comVaga === 0 ? 'disabled' : ''}
+          class="bg-teal-600 hover:bg-teal-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-medium px-4 py-2 rounded-lg text-xs transition flex items-center justify-center gap-1.5 cursor-pointer">
+          <i class="fa-solid fa-calendar-plus"></i> ${escapeHtml(rotulo)}
+        </button>`;
+  return { vagas, comVaga, aAbrir, botao };
+}
+
+// prova que já passou: só informa (sem Reagendar/Cancelar). Se o aluno faltou, pode agendar outro horário
+function renderizarCardProvaPassada(disciplina, ag, situacao) {
+  const realizada = situacao === 'REALIZADA';
+  const { vagas, botao } = resumoVagas(disciplina);
+  return `
+      <div class="task-item bg-slate-50 p-4 sm:p-5 rounded-xl border border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition hover:border-emerald-500" data-situacao="${realizada ? 'realizada' : 'encerrada'}">
+        <div class="space-y-1.5 flex-1">
+          <h4 class="font-bold text-slate-900 text-sm sm:text-base">${escapeHtml(disciplina)} <span class="text-xs font-normal text-slate-500">(${escapeHtml(ag.polo || 'Polo Geral')})</span></h4>
+          <div class="inline-block ${realizada ? 'bg-sky-100 text-sky-800 border-sky-200' : 'bg-slate-200 text-slate-700 border-slate-300'} text-xs font-semibold px-2.5 py-0.5 rounded-full border">${realizada ? 'Prova realizada' : 'Prova encerrada'}</div>
+          <div class="text-xs text-slate-600 pt-1">
+            <i class="fa-regular fa-calendar-days text-slate-500"></i> <strong>Data/Hora:</strong>
+            ${escapeHtml(formatarDataBr(ag.data_agendada))} às ${escapeHtml(faixaHorario(ag.horario_agendado, ag.horario_fim))}
+          </div>
+          ${realizada ? '' : '<div class="text-xs text-slate-500">A entrada nesta prova não foi confirmada pela portaria.</div>'}
+        </div>
+        <div class="w-full md:w-auto border-t md:border-t-0 pt-3 md:pt-0 border-slate-200 shrink-0">
+          <div class="flex flex-wrap gap-2">
+          <button data-acao="comprovante" data-id="${Number(ag.id)}" class="bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-medium px-3 py-2 rounded-lg text-xs transition flex items-center justify-center gap-1.5 cursor-pointer">
+            <i class="fa-solid fa-receipt"></i> Comprovante
+          </button>
+          ${!realizada && vagas.length ? botao : ''}
+          </div>
+        </div>
+      </div>`;
+}
+
 function renderizarCard(disciplina) {
   const ag = agendamentosPorDisciplina.get(disciplina);
+  const situacao = ag ? situacaoDe(ag) : null;
+
+  if (ag && situacao !== 'PENDENTE') return renderizarCardProvaPassada(disciplina, ag, situacao);
 
   if (ag) {
     return `
@@ -227,11 +290,7 @@ function renderizarCard(disciplina) {
       </div>`;
   }
 
-  const vagas = vagasPorDisciplina.get(disciplina) || [];
-  const comVaga = vagas.filter((v) => v.agendamento_aberto !== false && v.vagas_restantes > 0).length;
-  const aAbrir = vagas.filter((v) => v.agendamento_aberto === false)
-    .sort((x, y) => String(x.agendamento_inicio).localeCompare(String(y.agendamento_inicio)));
-  const rotulo = comVaga > 0 ? 'Agendar' : (aAbrir.length ? `Abre em ${formatarDataBr(aAbrir[0].agendamento_inicio)}` : 'Sem vagas');
+  const { comVaga, aAbrir, botao } = resumoVagas(disciplina);
 
   return `
     <div class="task-item bg-slate-50 p-4 sm:p-5 rounded-xl border border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition hover:border-emerald-500">
@@ -242,11 +301,7 @@ function renderizarCard(disciplina) {
           <i class="fa-regular fa-calendar-days text-amber-600"></i> ${comVaga === 0 && aAbrir.length ? `Agendamento abre em ${escapeHtml(formatarDataBr(aAbrir[0].agendamento_inicio))}` : `${comVaga} horário(s) com vaga`}
         </div>
       </div>
-      <div class="w-full md:w-auto border-t md:border-t-0 pt-3 md:pt-0 border-slate-200 shrink-0">
-        <button data-acao="agendar" data-disciplina="${escapeHtml(disciplina)}" ${comVaga === 0 ? 'disabled' : ''}
-          class="bg-teal-600 hover:bg-teal-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-medium px-4 py-2 rounded-lg text-xs transition flex items-center justify-center gap-1.5 cursor-pointer">
-          <i class="fa-solid fa-calendar-plus"></i> ${escapeHtml(rotulo)}
-        </button>
+      <div class="w-full md:w-auto border-t md:border-t-0 pt-3 md:pt-0 border-slate-200 shrink-0">${botao}
       </div>
     </div>`;
 }
@@ -368,13 +423,22 @@ async function solicitarCancelamento(agendamentoId) {
   }
 
   try {
-    const { ok, dados } = await apiFetch('/api/cancelar-agendamento', {
+    const { ok, status, dados } = await apiFetch('/api/cancelar-agendamento', {
       method: 'POST',
       body: JSON.stringify({ agendamento_id: agendamentoId })
     });
 
     if (ok && dados?.sucesso) {
       Swal.fire({ title: 'Cancelado!', text: dados.mensagem, icon: 'success', confirmButtonColor: '#065f46' });
+      carregarVagas();
+    } else if (status === 404) {
+      // o agendamento já não está ativo (ex.: cancelado em outra aba): não é bloqueio por regra
+      Swal.fire({
+        title: 'Agendamento não encontrado',
+        text: `${dados?.mensagem || 'Agendamento ativo não encontrado.'} A lista foi atualizada.`,
+        icon: 'info',
+        confirmButtonColor: '#065f46'
+      });
       carregarVagas();
     } else {
       Swal.fire({
@@ -478,7 +542,7 @@ async function abrirResultados() {
   modal.classList.add('flex');
 
   const lista = document.getElementById('listaResultadosModal');
-  lista.innerHTML = '<p class="text-center text-slate-500 py-6">A carregar resultados...</p>';
+  lista.innerHTML = '<p class="text-center text-slate-500 py-6">Carregando resultados...</p>';
 
   const resultados = await carregarResultados();
 
