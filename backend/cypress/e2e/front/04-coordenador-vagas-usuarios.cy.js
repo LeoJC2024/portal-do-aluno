@@ -297,10 +297,10 @@ describe('Coordenação: modal de adição de vagas', () => {
   });
 
   it('erro do servidor (ex.: agenda duplicada) é exibido e o modal continua aberto', () => {
-    cy.mockApi('POST', '/api/cadastrar-vaga', { sucesso: false, mensagem: 'Já existe uma agenda para esta disciplina, neste polo, na mesma data e horário.' }, { status: 409 });
+    cy.mockApi('POST', '/api/cadastrar-vaga', { sucesso: false, mensagem: 'Já existe uma vaga desta disciplina para este curso, neste polo, na mesma data e horário.' }, { status: 409 });
     preencher();
     enviar();
-    cy.swal('Erro', 'Já existe uma agenda');
+    cy.swal('Erro', 'Já existe uma vaga desta disciplina para este curso');
     cy.confirmarSwal();
     cy.get('#modalVaga').should('have.class', 'flex');
     cy.get('#vagaLimite').should('have.value', '40');
@@ -368,12 +368,12 @@ describe('Coordenação: usuários cadastrados (tabela)', () => {
   });
 
   it('excluir: confirma, envia {id, ativo:false} e recarrega a lista', () => {
-    cy.mockApi('POST', '/api/alterar-status-usuario', { sucesso: true, mensagem: 'Usuário excluído. 2 agendamento(s) ativo(s) foram cancelados.' }, { alias: 'status' });
+    cy.mockApi('POST', '/api/alterar-status-usuario', { sucesso: true, mensagem: 'Usuário excluído. 2 agendamento(s) futuro(s) cancelado(s); 1 com entrada confirmada foi mantido.' }, { alias: 'status' });
     linha('Ana Souza').contains('button', 'Excluir').click();
     cy.swal('Excluir usuário?', 'Ana Souza');
     cy.confirmarSwal();
     cy.wait('@status').its('request.body').should('deep.equal', { id: 1, ativo: false });
-    cy.swal('Pronto!', '2 agendamento(s)');
+    cy.swal('Pronto!', '2 agendamento(s) futuro(s) cancelado(s); 1 com entrada confirmada foi mantido.');
     cy.wait('@usuarios');
   });
 

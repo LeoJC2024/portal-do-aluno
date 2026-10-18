@@ -123,6 +123,14 @@
   max-width: 100%;
 }
 
+/* ---------- texto longo sem espaço (ex.: disciplina de 100 letras) ---------- */
+/* quebra o texto dentro da célula em vez de alargar a tabela ou a página. O min-width impede que a
+   tabela esprema a coluna a ponto de quebrar palavras normais; textos comuns ficam como antes */
+.quebra-texto {
+  overflow-wrap: anywhere;
+  min-width: 8rem;
+}
+
 /* ---------- áreas de toque: no mínimo 40 px ---------- */
 button,
 select,

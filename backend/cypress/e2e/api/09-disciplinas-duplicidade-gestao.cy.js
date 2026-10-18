@@ -221,7 +221,7 @@ describe('API: não permitir agenda duplicada', () => {
     cadastrar(corpo({ polo })).its('status').should('eq', 200);
     cadastrar(corpo({ polo })).then((r) => {
       expect(r.status, JSON.stringify(r.body)).to.eq(409);
-      expect(r.body.mensagem).to.contain('Já existe uma agenda');
+      expect(r.body.mensagem).to.eq('Já existe uma vaga desta disciplina para este curso, neste polo, na mesma data e horário.');
     });
     total(polo).should('eq', 1);
   });
@@ -233,10 +233,14 @@ describe('API: não permitir agenda duplicada', () => {
     cadastrar(corpo({ polo, disciplina: disciplina.toLowerCase() })).its('status').should('eq', 409);
   });
 
-  it('outro curso no mesmo polo, data e horário também conta como duplicada', () => {
+  // mudou com a correção "mesma prova para cursos diferentes" (testes exploratórios da coordenação):
+  // antes o outro curso era recusado; agora cada curso pode ter a sua vaga, e só repete o mesmo curso
+  it('outro curso no mesmo polo, data e horário é permitido; o mesmo curso de novo não', () => {
     const polo = `Polo CY Dup C ${n}`;
     cadastrar(corpo({ polo })).its('status').should('eq', 200);
+    cadastrar(corpo({ polo, curso: 'CY Curso B' })).its('status').should('eq', 200);
     cadastrar(corpo({ polo, curso: 'CY Curso B' })).its('status').should('eq', 409);
+    total(polo).should('eq', 2);
   });
 
   it('mudando o horário de início, a data ou o polo, é permitido', () => {
@@ -263,7 +267,7 @@ describe('API: não permitir agenda duplicada', () => {
     cy.task('bdTentar', {
       sql: `INSERT INTO vagas (polo, curso, disciplina, data_prova, horario, limite_vagas) VALUES ($1, $2, $3, $4, '08:00', 5)`,
       params: [polo, CURSO_A, disciplina, dataSP(10)]
-    }).then((r) => expect(r.erro, 'precisa rodar a migracao_parte_d.sql no banco de teste').to.contain('uq_vagas_disciplina_data_hora_polo'));
+    }).then((r) => expect(r.erro, 'precisa rodar a migracao_parte_e.sql no banco de teste').to.contain('uq_vagas_polo_disciplina_curso_data_hora'));
   });
 });
 

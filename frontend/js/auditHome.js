@@ -122,11 +122,11 @@ async function carregarDadosAuditoria(pagina = paginaAuditoria) {
       return `
         <tr class="hover:bg-slate-700/50 transition">
           <td class="px-4 py-3 text-slate-400">${escapeHtml(formatarDataHoraBr(log.data_hora))}</td>
-          <td class="px-4 py-3 font-semibold text-white">${escapeHtml(log.usuario || 'sistema')}</td>
+          <td class="px-4 py-3 font-semibold text-white"><div class="quebra-texto">${escapeHtml(log.usuario || 'sistema')}</div></td>
           <td class="px-4 py-3 ${acaoClass}">${escapeHtml(log.acao)}</td>
           <td class="px-4 py-3"><span class="${badgeClass} px-2 py-0.5 rounded">${statusTexto}</span></td>
           <td class="px-4 py-3 text-slate-400">${escapeHtml(log.ip || '—')}</td>
-          <td class="px-4 py-3 text-slate-400">${escapeHtml(log.descricao || 'N/A')}</td>
+          <td class="px-4 py-3 text-slate-400"><div class="quebra-texto">${escapeHtml(log.descricao || 'N/A')}</div></td>
         </tr>`;
     }).join('');
   } catch (erro) {

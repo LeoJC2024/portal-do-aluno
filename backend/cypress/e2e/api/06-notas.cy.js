@@ -76,11 +76,15 @@ describe('API: notas e resultados', () => {
       });
     });
 
-    it('aceita vírgula decimal, número como texto e os limites 0 e 10', () => {
-      atualizar({ id: id.a1, nota: '7,5' }).its('status').should('eq', 200);
+    // mudou com a validação estrita da nota (pedido do usuário): vírgula ("7,5") e número como texto ("9")
+    // passaram a ser recusados (400) — ver 16-coordenacao-exploratorio.cy.js. Aqui ficam os números válidos
+    it('aceita número com até 2 casas decimais e os limites 0 e 10', () => {
+      atualizar({ id: id.a1, nota: 7.5 }).its('status').should('eq', 200);
       notaNoBanco(id.a1).should('eq', 7.5);
-      atualizar({ id: id.a1, nota: '9' }).its('status').should('eq', 200);
+      atualizar({ id: id.a1, nota: 9 }).its('status').should('eq', 200);
       notaNoBanco(id.a1).should('eq', 9);
+      atualizar({ id: id.a1, nota: 7.25 }).its('status').should('eq', 200);
+      notaNoBanco(id.a1).should('eq', 7.25);
       atualizar({ id: id.a1, nota: 0 }).its('status').should('eq', 200);
       notaNoBanco(id.a1).should('eq', 0);
       atualizar({ id: id.a1, nota: 10 }).its('status').should('eq', 200);

@@ -44,8 +44,10 @@ ALTER TABLE vagas ADD COLUMN IF NOT EXISTS agendamento_fim date;
 ALTER TABLE vagas ADD COLUMN IF NOT EXISTS criado_em timestamptz;
 ALTER TABLE vagas ADD COLUMN IF NOT EXISTS criado_por text;
 ALTER TABLE vagas ALTER COLUMN criado_em SET DEFAULT now();
-CREATE UNIQUE INDEX IF NOT EXISTS uq_vagas_disciplina_data_hora_polo
-    ON vagas (polo, LOWER(TRIM(disciplina)), data_prova, horario);
+-- parte E: a vaga repetida passa a considerar também o curso (migracao_parte_e.sql)
+CREATE UNIQUE INDEX IF NOT EXISTS uq_vagas_polo_disciplina_curso_data_hora
+    ON vagas (polo, LOWER(TRIM(disciplina)), LOWER(TRIM(COALESCE(curso, ''))), data_prova, horario);
+DROP INDEX IF EXISTS uq_vagas_disciplina_data_hora_polo;
 
 -- disciplinas
 CREATE TABLE IF NOT EXISTS disciplinas (

@@ -38,8 +38,9 @@ CREATE TABLE IF NOT EXISTS vagas (
   criado_em          TIMESTAMPTZ DEFAULT now(),
   criado_por         TEXT
 );
-CREATE UNIQUE INDEX IF NOT EXISTS uq_vagas_disciplina_data_hora_polo
-    ON vagas (polo, LOWER(TRIM(disciplina)), data_prova, horario);
+-- vaga repetida = mesmo polo + disciplina + curso + data + horário (migracao_parte_e.sql)
+CREATE UNIQUE INDEX IF NOT EXISTS uq_vagas_polo_disciplina_curso_data_hora
+    ON vagas (polo, LOWER(TRIM(disciplina)), LOWER(TRIM(COALESCE(curso, ''))), data_prova, horario);
 
 CREATE TABLE IF NOT EXISTS disciplinas (
   id         SERIAL PRIMARY KEY,

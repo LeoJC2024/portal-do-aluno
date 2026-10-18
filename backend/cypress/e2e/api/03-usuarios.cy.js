@@ -354,7 +354,8 @@ describe('API: exclusão lógica e reativação de usuários', () => {
 
         alterar(aluno.id, false).then((r) => {
           expect(r.status, JSON.stringify(r.body)).to.eq(200);
-          expect(r.body.mensagem).to.contain('1 agendamento(s)');
+          // texto novo: informa cancelados e mantidos com entrada (16-coordenacao-exploratorio.cy.js)
+          expect(r.body.mensagem).to.eq('Usuário excluído. 1 agendamento(s) futuro(s) cancelado(s); 0 com entrada confirmada foram mantidos.');
         });
 
         cy.loginApi(aluno.matricula, aluno.senha).then((r) => {

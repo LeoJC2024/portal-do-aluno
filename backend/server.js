@@ -99,6 +99,8 @@ const PERFIL = {
 const TIPOS_CADASTRAVEIS = ['Aluno', 'coordenador', 'Recepção do Polo'];
 
 const normalizar = (t) => String(t || '').trim().toLowerCase();
+// apara e junta espaços repetidos ("  cy   curso a " -> "cy curso a")
+const normalizarEspacos = (t) => String(t ?? '').trim().replace(/\s+/g, ' ');
 const ehHash = (s) => /^\$2[aby]\$/.test(String(s || ''));
 const DUMMY_HASH = bcrypt.hashSync('senha-falsa-para-tempo-constante', 10);
 
@@ -296,6 +298,26 @@ function validarVagaParaAgendar(vaga, usuario) {
   }
 }
 
+// curso já com espaços normalizados. Se já existe o mesmo curso escrito com outras maiúsculas/minúsculas
+// ou espaços (em alunos ou vagas), usa a grafia existente (a mais usada), para não virar um curso separado.
+// Os dados antigos não são alterados.
+async function cursoCanonico(db, curso) {
+  if (!curso) return curso;
+  const { rows } = await db.query(
+    `SELECT curso FROM (
+        SELECT TRIM(curso) AS curso FROM usuarios WHERE curso IS NOT NULL
+        UNION ALL
+        SELECT TRIM(curso) FROM vagas WHERE curso IS NOT NULL
+     ) c
+      WHERE LOWER(regexp_replace(curso, '[[:space:]]+', ' ', 'g')) = LOWER($1)
+      GROUP BY curso
+      ORDER BY COUNT(*) DESC, curso
+      LIMIT 1`,
+    [curso]
+  );
+  return rows[0] ? normalizarEspacos(rows[0].curso) : curso;
+}
+
 async function registrarAuditoria(db, acao, descricao, usuario, ip) {
   await db.query(
     'INSERT INTO auditoria (acao, descricao, usuario, ip) VALUES ($1, $2, $3, $4)',
@@ -428,7 +450,7 @@ app.post('/api/login', limitadorLogin, rota(async (req, res) => {
 
 app.post('/api/cadastrar-usuario', autenticar, exigirPerfil(PERFIL.COORD), rota(async (req, res) => {
   const nome = String(req.body.nome ?? '').trim();
-  const curso = String(req.body.curso ?? '').trim();
+  let curso = normalizarEspacos(req.body.curso);
   const tipo = String(req.body.tipo ?? '').trim();
   // e-mail sempre gravado em minúsculas (o índice único do banco também compara sem maiúsculas)
   const email = String(req.body.email ?? '').trim().toLowerCase();
@@ -460,6 +482,7 @@ app.post('/api/cadastrar-usuario', autenticar, exigirPerfil(PERFIL.COORD), rota(
   if (polo.length > 100) {
     return res.status(400).json({ sucesso: false, mensagem: 'Nome do polo grande demais.' });
   }
+  curso = await cursoCanonico(pool, curso);
 
   const senhaProvisoria = gerarSenhaProvisoria();
   const senhaHash = await bcrypt.hash(senhaProvisoria, 10);
@@ -639,7 +662,9 @@ app.post('/api/alterar-status-usuario', autenticar, exigirPerfil(PERFIL.COORD), 
       throw new ErroHttp(409, ativar ? 'O usuário já está ativo.' : 'O usuário já está excluído.');
     }
 
+    const ehAluno = normalizar(alvo.tipo) === PERFIL.ALUNO;
     let cancelados = 0;
+    let mantidosComEntrada = 0;
 
     if (!ativar) {
       if (normalizar(alvo.tipo) === PERFIL.COORD) {
@@ -657,22 +682,41 @@ app.post('/api/alterar-status-usuario', autenticar, exigirPerfil(PERFIL.COORD), 
         'UPDATE usuarios SET ativo = false, codigo_recuperacao = NULL, codigo_expiracao = NULL WHERE id = $1',
         [id]
       );
-      // libera as vagas que o usuário ocupava
-      const r = await client.query(
-        `UPDATE agendamentos SET status = 'INATIVO' WHERE usuario_id = $1 AND status = 'ATIVO'`,
-        [id]
-      );
-      cancelados = r.rowCount;
+      if (ehAluno) {
+        // libera as vagas só das provas que ainda não terminaram e sem entrada confirmada. Os agendamentos
+        // com entrada confirmada e os de provas já terminadas continuam ATIVOS (histórico e lista do dia
+        // da portaria preservados). A condição da entrada fica no próprio UPDATE: se a portaria confirmar
+        // ao mesmo tempo, a linha travada é reavaliada e o agendamento confirmado não é cancelado
+        const r = await client.query(
+          `UPDATE agendamentos a SET status = 'INATIVO'
+             FROM vagas v
+            WHERE v.id = a.vaga_id AND a.usuario_id = $1 AND a.status = 'ATIVO'
+              AND a.entrada_confirmada_em IS NULL
+              AND ${sqlTerminoProva('$2')} > NOW()`,
+          [id, FUSO]
+        );
+        cancelados = r.rowCount;
+        const m = await client.query(
+          `SELECT COUNT(*)::int AS n FROM agendamentos
+            WHERE usuario_id = $1 AND status = 'ATIVO' AND entrada_confirmada_em IS NOT NULL`,
+          [id]
+        );
+        mantidosComEntrada = m.rows[0].n;
+      }
     } else {
       await client.query('UPDATE usuarios SET ativo = true WHERE id = $1', [id]);
     }
+
+    // só a exclusão de aluno fala em agendamentos
+    const resumoAgendamentos = `${cancelados} agendamento(s) futuro(s) cancelado(s); ` +
+      `${mantidosComEntrada} com entrada confirmada ${mantidosComEntrada === 1 ? 'foi mantido' : 'foram mantidos'}`;
 
     await registrarAuditoria(
       client,
       ativar ? 'REATIVACAO_USUARIO' : 'SOFT_DELETE',
       ativar
         ? `Usuário reativado: ${alvo.nome} (${alvo.matricula}, ${alvo.tipo})`
-        : `Usuário excluído: ${alvo.nome} (${alvo.matricula}, ${alvo.tipo}); ${cancelados} agendamento(s) ativo(s) cancelado(s)`,
+        : `Usuário excluído: ${alvo.nome} (${alvo.matricula}, ${alvo.tipo})${ehAluno ? `; ${resumoAgendamentos}` : ''}`,
       req.usuario.nome, req.ip
     );
 
@@ -682,7 +726,7 @@ app.post('/api/alterar-status-usuario', autenticar, exigirPerfil(PERFIL.COORD), 
       sucesso: true,
       mensagem: ativar
         ? 'Usuário reativado com sucesso.'
-        : `Usuário excluído.${cancelados ? ` ${cancelados} agendamento(s) ativo(s) foram cancelados.` : ''}`
+        : `Usuário excluído.${ehAluno ? ` ${resumoAgendamentos}.` : ''}`
     });
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
@@ -828,7 +872,7 @@ app.post('/api/recuperar-senha', limitadorSenha, rota(async (req, res) => {
 // ==========================================
 app.post('/api/cadastrar-vaga', autenticar, exigirPerfil(PERFIL.COORD), rota(async (req, res) => {
   const polo = String(req.body.polo ?? '').trim();
-  const curso = String(req.body.curso ?? '').trim();
+  let curso = normalizarEspacos(req.body.curso);
   const disciplina = String(req.body.disciplina ?? '').trim();
   const data = String(req.body.data ?? '').trim();
   const inicio = String(req.body.horario_inicio ?? '').trim();
@@ -889,27 +933,54 @@ app.post('/api/cadastrar-vaga', autenticar, exigirPerfil(PERFIL.COORD), rota(asy
     return res.status(400).json({ sucesso: false, mensagem: 'Esta disciplina está inativa. Reative-a na aba Disciplinas para criar novas vagas.' });
   }
   const nomeDisciplina = disc.rows[0].nome;
+  curso = await cursoCanonico(pool, curso);
 
+  // vaga repetida = mesmo polo + disciplina + CURSO + data + horário de início (a mesma disciplina pode
+  // ser oferecida a cursos diferentes, cada um com o seu limite). Polo, disciplina e curso são comparados
+  // sem diferenciar maiúsculas/minúsculas nem espaços nas pontas (no curso, também os espaços repetidos).
+  // O advisory lock da mesma chave faz dois cadastros iguais simultâneos entrarem um de cada vez, então a
+  // checagem enxerga o anterior; o índice único uq_vagas_polo_disciplina_curso_data_hora é a proteção extra
+  const REPETIDA = 'Já existe uma vaga desta disciplina para este curso, neste polo, na mesma data e horário.';
+  const chave = ['vaga', polo, nomeDisciplina.trim(), curso, data, inicio].map((s) => String(s).toLowerCase()).join('|');
+
+  const client = await pool.connect();
   let ins;
   try {
-    ins = await pool.query(
+    await client.query('BEGIN');
+    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [chave]);
+
+    const repetida = await client.query(
+      `SELECT 1 FROM vagas
+        WHERE LOWER(TRIM(polo)) = LOWER($1)
+          AND LOWER(TRIM(disciplina)) = LOWER(TRIM($2))
+          AND LOWER(regexp_replace(TRIM(COALESCE(curso, '')), '[[:space:]]+', ' ', 'g')) = LOWER($3)
+          AND data_prova = $4 AND horario = $5::time
+        LIMIT 1`,
+      [polo, nomeDisciplina, curso, data, inicio]
+    );
+    if (repetida.rows.length > 0) throw new ErroHttp(409, REPETIDA);
+
+    ins = await client.query(
       `INSERT INTO vagas (polo, curso, disciplina, data_prova, horario, horario_fim, limite_vagas, agendamento_inicio, agendamento_fim, criado_por)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING id`,
       [polo, curso, nomeDisciplina, data, inicio, fim, limite, agInicio || null, agFim || null, req.usuario.nome]
     );
-  } catch (err) {
-    if (err.code === '23505') {
-      return res.status(409).json({ sucesso: false, mensagem: 'Já existe uma agenda para esta disciplina, neste polo, na mesma data e horário.' });
-    }
-    throw err;
-  }
 
-  await registrarAuditoria(
-    pool, 'ADICAO_VAGAS',
-    `${limite} vagas abertas para ${nomeDisciplina} (${curso}) no ${polo} em ${data}, ${inicio} às ${fim}${agInicio ? `, agendamento de ${agInicio} a ${agFim}` : ''}`,
-    req.usuario.nome, req.ip
-  );
+    await registrarAuditoria(
+      client, 'ADICAO_VAGAS',
+      `${limite} vagas abertas para ${nomeDisciplina} (${curso}) no ${polo} em ${data}, ${inicio} às ${fim}${agInicio ? `, agendamento de ${agInicio} a ${agFim}` : ''}`,
+      req.usuario.nome, req.ip
+    );
+
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    if (err.code === '23505') return res.status(409).json({ sucesso: false, mensagem: REPETIDA });
+    throw err;
+  } finally {
+    client.release();
+  }
 
   res.json({ sucesso: true, mensagem: 'Vagas cadastradas e log gerado com sucesso!', id: ins.rows[0].id });
 }));
@@ -990,13 +1061,15 @@ app.post('/api/alterar-status-disciplina', autenticar, exigirPerfil(PERFIL.COORD
   });
 }));
 
-// todas as vagas cadastradas (inclusive as passadas), com ocupação e data/hora do cadastro
+// todas as vagas cadastradas (inclusive as passadas), com ocupação e data/hora do cadastro.
+// futura = a prova ainda não TERMINOU (prova em andamento não é "realizada"); vaga antiga sem
+// horário de fim termina no horário de início, como no resto do sistema
 app.get('/api/vagas-gestao', autenticar, exigirPerfil(PERFIL.COORD), rota(async (req, res) => {
   const { rows } = await pool.query(
     `SELECT v.id, v.polo, v.curso, v.disciplina, v.data_prova, v.horario, v.horario_fim, v.limite_vagas,
             v.agendamento_inicio, v.agendamento_fim, v.criado_em, v.criado_por,
             COALESCE(c.qtd, 0)::int AS ocupadas,
-            ((v.data_prova + v.horario::time) AT TIME ZONE $1) > NOW() AS futura
+            ((v.data_prova + COALESCE(v.horario_fim::time, v.horario::time)) AT TIME ZONE $1) > NOW() AS futura
        FROM vagas v
        LEFT JOIN (
          SELECT vaga_id, COUNT(*)::int AS qtd FROM agendamentos WHERE status = 'ATIVO' GROUP BY vaga_id
@@ -1387,29 +1460,49 @@ app.post('/api/cancelar-agendamento', autenticar, exigirPerfil(PERFIL.ALUNO), ro
 // ==========================================
 // NOTAS
 // ==========================================
+// nota mínima para aprovação: a situação (resultado) é calculada aqui e a tela só exibe
+const NOTA_MINIMA_APROVACAO = 6;
+const sqlResultadoNota = (param) =>
+  `CASE WHEN nota IS NULL THEN 'Sem nota' WHEN nota >= ${param} THEN 'Aprovado' ELSE 'Reprovado' END AS resultado`;
+
 // resultados do próprio aluno (identificado pela matrícula do token, nunca por nome)
 app.get('/api/resultados', autenticar, exigirPerfil(PERFIL.ALUNO), rota(async (req, res) => {
   const { rows } = await pool.query(
-    'SELECT * FROM notas_alunos WHERE matricula = $1 ORDER BY id DESC',
-    [req.usuario.matricula]
+    `SELECT *, ${sqlResultadoNota('$2')} FROM notas_alunos WHERE matricula = $1 ORDER BY id DESC`,
+    [req.usuario.matricula, NOTA_MINIMA_APROVACAO]
   );
   res.json(rows);
 }));
 
 app.get('/api/notas', autenticar, exigirPerfil(PERFIL.COORD), rota(async (req, res) => {
-  const { rows } = await pool.query('SELECT * FROM notas_alunos ORDER BY id DESC LIMIT 500');
+  const { rows } = await pool.query(
+    `SELECT *, ${sqlResultadoNota('$1')} FROM notas_alunos ORDER BY id DESC LIMIT 500`,
+    [NOTA_MINIMA_APROVACAO]
+  );
   res.json(rows);
 }));
 
+// só aceita número de verdade (tipo number do JSON), de 0 a 10, com até 2 casas decimais.
+// Texto (inclusive "7,5", "1e1", "0x5"), arrays, objetos, nulo e valores fora do intervalo devolvem null
+function notaValida(valor) {
+  if (typeof valor !== 'number' || !Number.isFinite(valor)) return null;
+  if (valor < 0 || valor > 10) return null;
+  // String(7.25) = "7.25"; números com mais casas (ou minúsculos, como 1e-7) não passam
+  return /^\d{1,2}(\.\d{1,2})?$/.test(String(valor)) ? valor : null;
+}
+
 app.post('/api/atualizar-nota', autenticar, exigirPerfil(PERFIL.COORD), rota(async (req, res) => {
   const id = inteiroEstrito(req.body.id);
-  const nota = Number(String(req.body.nota ?? '').replace(',', '.'));
+  const nota = notaValida(req.body.nota);
 
   if (id === null) {
     return res.status(400).json({ sucesso: false, mensagem: 'Registro inválido.' });
   }
-  if (String(req.body.nota ?? '').trim() === '' || !Number.isFinite(nota) || nota < 0 || nota > 10) {
-    return res.status(400).json({ sucesso: false, mensagem: 'Informe uma nota entre 0 e 10.' });
+  if (nota === null) {
+    return res.status(400).json({
+      sucesso: false,
+      mensagem: 'Informe uma nota numérica entre 0 e 10, com até 2 casas decimais (ex.: 7.5). Texto, vírgula e outros formatos não são aceitos.'
+    });
   }
 
   const { rows } = await pool.query(

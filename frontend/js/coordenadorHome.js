@@ -71,7 +71,7 @@ window.addEventListener('DOMContentLoaded', () => {
     } else if (botao.dataset.usuarioAcao === 'polo') {
       definirPolo(id, botao.dataset.nome, botao.dataset.polo);
     } else {
-      alterarStatusUsuario(id, botao.dataset.usuarioAcao === 'reativar', botao.dataset.nome);
+      alterarStatusUsuario(id, botao.dataset.usuarioAcao === 'reativar', botao.dataset.nome, botao.dataset.tipo);
     }
   });
   byId('inputFotoUsuario').addEventListener('change', async (e) => {
@@ -211,7 +211,7 @@ function renderDisciplinas() {
            <i class="fa-solid fa-rotate-left"></i> Reativar</button>`;
     return `
       <tr class="hover:bg-slate-50 transition ${ativa ? '' : 'opacity-70'}">
-        <td class="px-4 py-3 font-semibold text-slate-900">${escapeHtml(d.nome)}</td>
+        <td class="px-4 py-3 font-semibold text-slate-900"><div class="quebra-texto">${escapeHtml(d.nome)}</div></td>
         <td class="px-4 py-3 text-center">
           <span class="text-xs font-semibold px-2.5 py-0.5 rounded-full ${ativa ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'}">${ativa ? 'Ativa' : 'Inativa'}</span>
         </td>
@@ -338,11 +338,11 @@ function renderVagas() {
     return `
       <tr class="hover:bg-slate-50 transition">
         <td class="px-4 py-3">
-          <div class="font-semibold text-slate-900">${escapeHtml(v.polo)}</div>
-          <div class="text-xs text-slate-500">${escapeHtml(v.curso || 'Todos os cursos')}</div>
+          <div class="font-semibold text-slate-900 quebra-texto">${escapeHtml(v.polo)}</div>
+          <div class="text-xs text-slate-500 quebra-texto">${escapeHtml(v.curso || 'Todos os cursos')}</div>
         </td>
         <td class="px-4 py-3">
-          <div class="font-medium text-slate-800">${escapeHtml(v.disciplina)}</div>
+          <div class="font-medium text-slate-800 quebra-texto">${escapeHtml(v.disciplina)}</div>
           ${v.futura ? '' : '<div class="text-xs text-slate-400">Prova realizada</div>'}
         </td>
         <td class="px-4 py-3 whitespace-nowrap">
@@ -579,6 +579,7 @@ async function carregarUsuarios() {
       const tipoNorm = String(u.tipo || '').trim().toLowerCase();
       const ehAluno = tipoNorm === 'aluno';
       const ehRecepcao = tipoNorm === 'recepção do polo';
+      const tipoRotulo = rotuloTipo(u.tipo);
       const foto = urlSegura(u.foto_url);
 
       const avatar = foto
@@ -603,7 +604,7 @@ async function carregarUsuarios() {
       if (ehVoce) {
         acoes += '<span class="text-xs text-slate-400">(você)</span>';
       } else if (u.ativo) {
-        acoes += `<button data-usuario-acao="excluir" data-id="${Number(u.id)}" data-nome="${escapeHtml(u.nome)}"
+        acoes += `<button data-usuario-acao="excluir" data-id="${Number(u.id)}" data-nome="${escapeHtml(u.nome)}" data-tipo="${escapeHtml(tipoNorm)}"
                     class="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-medium px-3 py-1.5 rounded-lg text-xs transition cursor-pointer whitespace-nowrap">
                     <i class="fa-solid fa-user-xmark"></i> Excluir</button>`;
       } else {
@@ -615,12 +616,12 @@ async function carregarUsuarios() {
       return `
         <tr class="hover:bg-slate-50 transition ${u.ativo ? '' : 'opacity-70'}">
           <td class="px-4 py-3">
-            <div class="flex items-center gap-3">${avatar}<span class="font-semibold text-slate-900">${escapeHtml(u.nome)}</span></div>
+            <div class="flex items-center gap-3">${avatar}<span class="font-semibold text-slate-900 quebra-texto">${escapeHtml(u.nome)}</span></div>
           </td>
           <td class="px-4 py-3 font-mono text-xs text-slate-700">${escapeHtml(u.matricula)}</td>
-          <td class="px-4 py-3 text-xs text-slate-600">${escapeHtml(u.email || '—')}</td>
-          <td class="px-4 py-3 text-xs text-slate-700">${escapeHtml(u.tipo)}</td>
-          <td class="px-4 py-3 text-xs text-slate-700">${escapeHtml(cursoPolo)}</td>
+          <td class="px-4 py-3 text-xs text-slate-600"><div class="quebra-texto">${escapeHtml(u.email || '—')}</div></td>
+          <td class="px-4 py-3 text-xs text-slate-700">${escapeHtml(tipoRotulo)}</td>
+          <td class="px-4 py-3 text-xs text-slate-700"><div class="quebra-texto">${escapeHtml(cursoPolo)}</div></td>
           <td class="px-4 py-3 text-center">
             <span class="text-xs font-semibold px-2.5 py-0.5 rounded-full ${u.ativo ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'}">${u.ativo ? 'Ativo' : 'Excluído'}</span>
           </td>
@@ -682,12 +683,14 @@ async function enviarNovaFoto(id, arquivo) {
   }
 }
 
-async function alterarStatusUsuario(id, reativar, nome) {
+async function alterarStatusUsuario(id, reativar, nome, tipo) {
+  // só a exclusão de aluno fala em agendamentos
+  const textoExclusao = tipo === 'aluno'
+    ? `${nome} não poderá mais entrar no sistema. Os agendamentos de provas que ainda não terminaram e sem entrada confirmada serão cancelados; os com entrada confirmada e os de provas já terminadas são mantidos. O histórico e os logs também são mantidos.`
+    : `${nome} não poderá mais entrar no sistema. O histórico e os logs são mantidos.`;
   const confirmacao = await Swal.fire({
     title: reativar ? 'Reativar usuário?' : 'Excluir usuário?',
-    text: reativar
-      ? `${nome} poderá entrar no sistema novamente.`
-      : `${nome} não poderá mais entrar no sistema e os agendamentos ativos dele serão cancelados. O histórico e os logs são mantidos.`,
+    text: reativar ? `${nome} poderá entrar no sistema novamente.` : textoExclusao,
     icon: reativar ? 'question' : 'warning',
     showCancelButton: true,
     confirmButtonColor: reativar ? '#047857' : '#ef4444',
@@ -733,7 +736,10 @@ async function carregarNotas() {
       return;
     }
 
-    tbody.innerHTML = dados.map((item) => `
+    tbody.innerHTML = dados.map((item) => {
+      // Aprovado / Reprovado / Sem nota vem calculado do servidor
+      const resultado = seloResultado(item.resultado);
+      return `
       <tr class="hover:bg-slate-50 transition">
         <td class="px-4 py-3">
           <div class="font-semibold text-slate-900">${escapeHtml(item.nome_aluno)}</div>
@@ -742,9 +748,7 @@ async function carregarNotas() {
         <td class="px-4 py-3 font-medium text-slate-800">${escapeHtml(item.avaliacao)}</td>
         <td class="px-4 py-3"><span class="text-xs bg-slate-100 px-2 py-0.5 rounded font-medium text-slate-700">${escapeHtml(item.polo)}</span></td>
         <td class="px-4 py-3 text-center">
-          <span class="inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 text-xs font-semibold px-2.5 py-0.5 rounded-full">
-            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> ${escapeHtml(item.status || 'Sincronizado')}
-          </span>
+          <span data-resultado class="${resultado.classes} text-xs font-semibold px-2.5 py-0.5 rounded-full">${escapeHtml(resultado.texto)}</span>
         </td>
         <td class="px-4 py-3 text-center">
           <input type="number" step="0.5" min="0" max="10" id="nota-${Number(item.id)}" value="${escapeHtml(item.nota ?? '')}"
@@ -755,7 +759,8 @@ async function carregarNotas() {
             Salvar
           </button>
         </td>
-      </tr>`).join('');
+      </tr>`;
+    }).join('');
   } catch (e) {
     console.error('Erro ao carregar notas:', e);
     tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-6 text-center text-red-500">Erro ao carregar as notas do servidor.</td></tr>';
@@ -777,6 +782,7 @@ async function salvarNota(id, botao) {
 
     if (ok && dados?.sucesso) {
       Swal.fire({ title: 'Salvo!', text: dados.mensagem, icon: 'success', confirmButtonColor: '#047857' });
+      carregarNotas(); // atualiza o resultado (Aprovado/Reprovado) calculado pelo servidor
       carregarAuditoria();
     } else {
       Swal.fire({ title: 'Atenção', text: dados?.mensagem || 'Não foi possível salvar a nota.', icon: 'warning', confirmButtonColor: '#047857' });
@@ -851,7 +857,7 @@ function renderizarLogs(lista) {
 
     return `
       <div class="p-4 bg-slate-50 rounded-xl border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-slate-700 border-l-4 ${corBorda}">
-        <span>[LOG #${Number(log.id)}] <strong class="${corTexto}">${escapeHtml(log.acao)}</strong>: ${escapeHtml(log.descricao)}
+        <span class="quebra-texto">[LOG #${Number(log.id)}] <strong class="${corTexto}">${escapeHtml(log.acao)}</strong>: ${escapeHtml(log.descricao)}
           ${log.usuario ? `<span class="text-slate-400"> — por ${escapeHtml(log.usuario)}</span>` : ''}</span>
         <span class="text-slate-400">${escapeHtml(formatarDataHoraBr(log.data_hora))} | IP: ${escapeHtml(log.ip || '—')}</span>
       </div>`;

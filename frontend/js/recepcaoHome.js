@@ -45,12 +45,6 @@ window.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-// página restaurada pelo botão Voltar (cache do navegador) depois de Sair: sem sessão, recarrega para
-// cair na checagem de login em vez de continuar mostrando os dados da sessão anterior
-window.addEventListener('pageshow', (e) => {
-  if (e.persisted && !localStorage.getItem('unifaa_token')) window.location.reload();
-});
-
 // fetch sem resposta do servidor (API fora do ar, sem rede) lança TypeError ("Failed to fetch"):
 // mostra uma mensagem em português em vez do texto técnico do navegador
 const MENSAGEM_SEM_CONEXAO = 'Não foi possível conectar ao servidor. Tente novamente.';

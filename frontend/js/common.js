@@ -50,13 +50,32 @@ function formatarDataHoraBr(valor) {
   return new Date(valor).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
 }
 
+// rótulo padronizado do tipo de usuário (só exibição; o valor gravado no banco não muda)
+const ROTULOS_TIPO = { 'aluno': 'Aluno', 'coordenador': 'Coordenador', 'recepção do polo': 'Recepção', 'audit': 'Auditor' };
+function rotuloTipo(tipo) {
+  const t = String(tipo ?? '').trim();
+  return ROTULOS_TIPO[t.toLowerCase()] || t;
+}
+
+// cores da situação da nota calculada pelo servidor (campo "resultado")
+const CLASSES_RESULTADO = {
+  'Aprovado': 'bg-emerald-100 text-emerald-800 border border-emerald-200',
+  'Reprovado': 'bg-red-100 text-red-800 border border-red-200',
+  'Sem nota': 'bg-slate-100 text-slate-600 border border-slate-200'
+};
+function seloResultado(resultado) {
+  const texto = CLASSES_RESULTADO[resultado] ? resultado : 'Sem nota';
+  return { texto, classes: CLASSES_RESULTADO[texto] };
+}
+
 // ---------- sessão ----------
 function limparSessao() {
   CHAVES_SESSAO.forEach((k) => localStorage.removeItem(k));
 }
 
+// replace: a página de onde se saiu não fica no histórico (o Voltar não volta para ela)
 function irParaLogin() {
-  window.location.href = 'login.html';
+  window.location.replace('login.html');
 }
 
 function salvarSessao(dados) {
@@ -68,13 +87,47 @@ function salvarSessao(dados) {
   localStorage.setItem('usuario_matricula', dados.matricula || '');
 }
 
+// perfis da página autenticada aberta (definidos por exigirPerfil); null no login
+let perfisDaPagina = null;
+
+// token presente, não vencido (campo exp do JWT, quando dá para ler) e de um perfil aceito pela página
+function sessaoValida(perfisPermitidos) {
+  const token = localStorage.getItem('unifaa_token');
+  if (!token || !perfisPermitidos.includes(localStorage.getItem('usuario_perfil'))) return false;
+  try {
+    const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const { exp } = JSON.parse(atob(base64));
+    return typeof exp !== 'number' || exp * 1000 > Date.now();
+  } catch (_) {
+    return true; // formato que o navegador não lê: quem decide é o servidor (401 leva ao login)
+  }
+}
+
+// Botão Voltar depois de "Sair": o navegador pode reexibir a página guardada em memória (bfcache),
+// com os dados antigos, sem rodar os scripts de novo. Em qualquer página autenticada exibida assim,
+// sem sessão válida vai direto para o login (replace: não cria laço no histórico); com sessão
+// válida recarrega, para nunca mostrar dados velhos. A página de login não chama exigirPerfil
+// (perfisDaPagina fica null), então nada disso roda nela.
+window.addEventListener('pageshow', (e) => {
+  if (!perfisDaPagina) return;
+  if (!sessaoValida(perfisDaPagina)) {
+    document.documentElement.style.visibility = 'hidden'; // não deixa os dados antigos à mostra
+    window.location.replace('login.html');
+  } else if (e.persisted) {
+    window.location.reload();
+  }
+});
+
 // Retorna true se o perfil logado pode ver a página.
 // Atenção: isto é só experiência de uso. Quem protege os dados é o backend (JWT + perfil).
 function exigirPerfil(perfisPermitidos) {
   const token = localStorage.getItem('unifaa_token');
   const perfil = localStorage.getItem('usuario_perfil');
 
-  if (token && perfisPermitidos.includes(perfil)) return true;
+  if (token && perfisPermitidos.includes(perfil)) {
+    perfisDaPagina = perfisPermitidos;
+    return true;
+  }
 
   const semLogin = !token;
   Swal.fire({

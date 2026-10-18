@@ -564,16 +564,8 @@ async function abrirResultados() {
 
   const linhas = resultados.map((item) => {
     const temNota = item.nota !== null && item.nota !== undefined && item.nota !== '';
-    const nota = parseFloat(item.nota);
-    let status = 'Sem nota';
-    let classes = 'bg-slate-100 text-slate-600 border border-slate-200';
-    if (temNota && nota >= 6) {
-      status = 'Aprovado';
-      classes = 'bg-emerald-100 text-emerald-800 border border-emerald-200';
-    } else if (temNota) {
-      status = 'Reprovado';
-      classes = 'bg-red-100 text-red-800 border border-red-200';
-    }
+    // Aprovado / Reprovado / Sem nota vem calculado do servidor (nota mínima definida lá)
+    const { texto: status, classes } = seloResultado(item.resultado);
 
     return `
       <tr class="hover:bg-slate-50 transition">

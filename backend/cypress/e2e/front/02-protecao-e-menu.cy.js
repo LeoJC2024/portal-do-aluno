@@ -1,11 +1,12 @@
 import { SESSOES } from '../../support/dados';
 
+// todas as telas usam a frase completa "Você será desconectado do/da <painel>." com o artigo certo
+// (recepção: testes exploratórios da recepção; coordenação, aluno e auditor: testes exploratórios da coordenação)
 const PAGINAS = {
-  aluno: { arquivo: 'alunoHome.html', sistema: 'Portal do Aluno' },
-  coordenador: { arquivo: 'coordenadorHome.html', sistema: 'Gestão Acadêmica' },
-  // a recepção usa a frase completa "Você será desconectado do painel da portaria." (pedido dos testes exploratórios)
+  aluno: { arquivo: 'alunoHome.html', sistema: 'Portal do Aluno', mensagemSair: 'Você será desconectado do Portal do Aluno.' },
+  coordenador: { arquivo: 'coordenadorHome.html', sistema: 'Gestão Acadêmica', mensagemSair: 'Você será desconectado da Gestão Acadêmica.' },
   recepcao: { arquivo: 'recepcaoHome.html', sistema: 'painel da portaria', mensagemSair: 'Você será desconectado do painel da portaria.' },
-  audit: { arquivo: 'auditHome.html', sistema: 'sistema de auditoria' }
+  audit: { arquivo: 'auditHome.html', sistema: 'sistema de auditoria', mensagemSair: 'Você será desconectado do sistema de auditoria.' }
 };
 
 describe('Proteção das páginas (sem login)', () => {
@@ -49,7 +50,7 @@ describe('Sessão expirada', () => {
 });
 
 describe('Menu do usuário e sair', () => {
-  Object.entries(PAGINAS).forEach(([chave, { arquivo, sistema, mensagemSair }]) => {
+  Object.entries(PAGINAS).forEach(([chave, { arquivo, mensagemSair }]) => {
     context(arquivo, () => {
       beforeEach(() => {
         cy.stubApiGeral();
@@ -65,7 +66,8 @@ describe('Menu do usuário e sair', () => {
 
       it('sair pede confirmação, cita o sistema e limpa a sessão', () => {
         cy.get('#userDropdown').contains(/Sair/).click();
-        cy.swal('Deseja sair?', mensagemSair || `Será desconectado do ${sistema}.`);
+        cy.swal('Deseja sair?', mensagemSair);
+        cy.get('.swal2-html-container').should('have.text', mensagemSair);
         cy.confirmarSwal();
         cy.location('pathname').should('eq', '/login.html');
         cy.window().then((win) => {

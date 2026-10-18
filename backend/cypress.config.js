@@ -103,7 +103,7 @@ const COLUNAS_EXIGIDAS = {
   vagas: ['horario_fim', 'curso', 'agendamento_inicio', 'agendamento_fim', 'criado_em', 'criado_por'],
   disciplinas: ['nome', 'ativa', 'criado_em', 'criado_por']
 };
-const INDICES_EXIGIDOS = ['uq_usuarios_matricula_ci', 'uq_usuarios_email_ci', 'uq_agendamento_ativo', 'uq_vagas_disciplina_data_hora_polo', 'uq_disciplinas_nome_ci'];
+const INDICES_EXIGIDOS = ['uq_usuarios_matricula_ci', 'uq_usuarios_email_ci', 'uq_agendamento_ativo', 'uq_vagas_polo_disciplina_curso_data_hora','uq_disciplinas_nome_ci'];
 
 // faz uma requisição HTTP e devolve { status, body }
 async function requisitar(r) {

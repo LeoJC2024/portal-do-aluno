@@ -322,10 +322,11 @@ describe('Portal do aluno', () => {
   });
 
   describe('resultados', () => {
+    // o resultado agora vem calculado do servidor (campo "resultado"); a tela só exibe
     const resultados = [
-      { avaliacao: 'A1 - Algoritmos', polo: 'Polo Resende', nota: '7.50' },
-      { avaliacao: 'A2 - Redes', polo: 'Polo Resende', nota: '4.00' },
-      { avaliacao: 'A3 - Cálculo', polo: 'Polo Resende', nota: null }
+      { avaliacao: 'A1 - Algoritmos', polo: 'Polo Resende', nota: '7.50', resultado: 'Aprovado' },
+      { avaliacao: 'A2 - Redes', polo: 'Polo Resende', nota: '4.00', resultado: 'Reprovado' },
+      { avaliacao: 'A3 - Cálculo', polo: 'Polo Resende', nota: null, resultado: 'Sem nota' }
     ];
 
     it('o contador conta só notas lançadas e o modal classifica cada nota', () => {
@@ -340,10 +341,19 @@ describe('Portal do aluno', () => {
       cy.contains('#listaResultadosModal tr', 'A3 - Cálculo').should('contain.text', 'Sem nota');
     });
 
-    it('nota 6.0 é aprovação (limite)', () => {
-      abrir({ resultados: [{ avaliacao: 'Limite', polo: 'P', nota: '6.00' }] });
+    // antes a tela comparava a nota com 6; agora o limite fica só no servidor (NOTA_MINIMA_APROVACAO),
+    // e o caso "nota 6 é aprovação" é conferido no teste de API 16-coordenacao-exploratorio.cy.js
+    it('mostra o resultado que o servidor mandou (a tela não recalcula pela nota)', () => {
+      abrir({ resultados: [{ avaliacao: 'Limite', polo: 'P', nota: '6.00', resultado: 'Aprovado' }, { avaliacao: 'Regra do servidor', polo: 'P', nota: '9.00', resultado: 'Reprovado' }] });
       cy.get('#cardResultados').click();
-      cy.contains('#listaResultadosModal tr', 'Limite').should('contain.text', 'Aprovado');
+      cy.contains('#listaResultadosModal tr', 'Limite').find('span').should('have.text', 'Aprovado').and('have.class', 'bg-emerald-100');
+      cy.contains('#listaResultadosModal tr', 'Regra do servidor').find('span').should('have.text', 'Reprovado').and('have.class', 'bg-red-100');
+    });
+
+    it('sem o campo resultado mostra "Sem nota"', () => {
+      abrir({ resultados: [{ avaliacao: 'Sem campo', polo: 'P', nota: null }] });
+      cy.get('#cardResultados').click();
+      cy.contains('#listaResultadosModal tr', 'Sem campo').find('span').should('have.text', 'Sem nota').and('have.class', 'bg-slate-100');
     });
 
     it('enquanto carrega mostra "Carregando resultados..." (português do Brasil)', () => {
