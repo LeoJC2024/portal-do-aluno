@@ -417,11 +417,19 @@ app.post('/api/login', limitadorLogin, rota(async (req, res) => {
     return res.status(401).json({ sucesso: false, mensagem: 'Matrícula ou senha incorretas.' });
   }
 
+  // daqui para baixo a senha conferiu e a conta existe: a tentativa recusada é registrada em nome dela
+  // (sem senha, hash ou token na descrição); falha ao gravar a auditoria não muda a resposta do login
+  const registrarLoginRecusado = (acao, motivo) =>
+    registrarAuditoria(pool, acao, `Login recusado para ${usuario.nome} (${usuario.matricula}): ${motivo}`, usuario.matricula, req.ip)
+      .catch(() => {});
+
   if (usuario.ativo === false) {
+    await registrarLoginRecusado('LOGIN_RECUSADO_CONTA_INATIVA', 'conta desativada');
     return res.status(403).json({ sucesso: false, mensagem: 'Esta conta foi desativada. Procure a coordenação.' });
   }
 
   if (usuario.trocar_senha) {
+    await registrarLoginRecusado('LOGIN_RECUSADO_TROCA_SENHA', 'primeiro acesso, troca de senha pendente');
     return res.status(403).json({
       sucesso: false,
       trocar_senha: true,
@@ -1636,7 +1644,8 @@ app.post('/api/portaria/confirmar-entrada', autenticar, exigirPerfil(PERFIL.RECE
         AND ($3::text IS NULL OR v.polo = $3)
         AND a.data_agendada::date = (NOW() AT TIME ZONE $4)::date
         AND ${sqlTerminoProva('$4')} > NOW()
-      RETURNING a.aluno_nome`,
+      RETURNING a.aluno_nome, v.disciplina, a.data_agendada, a.horario_agendado,
+                (SELECT u.matricula FROM usuarios u WHERE u.id = a.usuario_id) AS matricula`,
     [ticketId, req.usuario.nome, req.usuario.polo, FUSO]
   );
 
@@ -1673,9 +1682,13 @@ app.post('/api/portaria/confirmar-entrada', autenticar, exigirPerfil(PERFIL.RECE
     return res.status(404).json(NAO_ENCONTRADO);
   }
 
+  // matrícula, disciplina e data/hora da prova (horário de São Paulo, como nos outros registros)
+  // permitem achar a entrada buscando pela matrícula do aluno
+  const ent = upd.rows[0];
   await registrarAuditoria(
     pool, 'CONFIRMACAO_ENTRADA',
-    `Portaria confirmou entrada do aluno ${upd.rows[0].aluno_nome} (Ticket #${ticketId})`,
+    `Portaria confirmou entrada do aluno ${ent.aluno_nome}${ent.matricula ? ` (${ent.matricula})` : ''} ` +
+      `na prova de ${ent.disciplina} (${ent.data_agendada} ${String(ent.horario_agendado).slice(0, 5)}) (Ticket #${ticketId})`,
     req.usuario.nome, req.ip
   );
 

@@ -82,10 +82,14 @@ describe('API: portaria (correções dos testes exploratórios)', () => {
           cy.bd(`SELECT acao, descricao, usuario FROM auditoria WHERE acao = 'CONFIRMACAO_ENTRADA' AND descricao LIKE $1`, [`%(Ticket #${ticket})%`])
             .then((rows) => {
               expect(rows).to.have.length(1);
-              expect(rows[0]).to.deep.eq({
-                acao: 'CONFIRMACAO_ENTRADA',
-                descricao: `Portaria confirmou entrada do aluno ${aluno.nome} (Ticket #${ticket})`,
-                usuario: USUARIOS.recepcao.nome
+              // texto novo: inclui matrícula, disciplina e data/hora da prova (17-auditor-exploratorio.cy.js, A4)
+              cy.bd('SELECT disciplina FROM vagas v JOIN agendamentos a ON a.vaga_id = v.id WHERE a.id = $1', [ticket]).then((vg) => {
+                expect(rows[0]).to.deep.eq({
+                  acao: 'CONFIRMACAO_ENTRADA',
+                  descricao: `Portaria confirmou entrada do aluno ${aluno.nome} (${aluno.matricula}) ` +
+                    `na prova de ${vg[0].disciplina} (${v.data} ${v.inicio}) (Ticket #${ticket})`,
+                  usuario: USUARIOS.recepcao.nome
+                });
               });
             });
         });

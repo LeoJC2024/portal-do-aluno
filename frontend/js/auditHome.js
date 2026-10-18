@@ -59,15 +59,35 @@ function definirStatusBanco(ok) {
   texto.textContent = ok ? 'Banco de dados: conectado' : 'Banco de dados: fora do ar';
 }
 
+// em erro, o rodapé não mostra mais o total/página da busca anterior e a navegação fica travada
+// até a próxima busca bem-sucedida
+function limparRodapeAuditoria() {
+  setTexto('auditoriaTotal', '—');
+  setTexto('auditoriaPaginaInfo', '—');
+  desativarPaginacaoAuditoria();
+}
+
 function classificarAcao(acao) {
   const a = String(acao || '').toUpperCase();
 
-  // BLOQUEADO precisa ser testado antes de CANCEL (CANCELAMENTO_BLOQUEADO contém os dois)
-  if (/REJECT|BLOQUEADO|FALHA/.test(a)) {
+  // BLOQUEADO precisa ser testado antes de CANCEL (CANCELAMENTO_BLOQUEADO contém os dois);
+  // RECUSADO antes de INATIV (LOGIN_RECUSADO_CONTA_INATIVA é login recusado, não inativação)
+  if (/REJECT|BLOQUEADO|FALHA|RECUSADO/.test(a)) {
+    let statusTexto = 'BLOQUEADO';
+    if (a.includes('FALHA')) statusTexto = 'FALHA';
+    else if (a.includes('RECUSADO')) statusTexto = 'RECUSADO';
     return {
       acaoClass: 'text-rose-400 font-bold',
       badgeClass: 'bg-rose-950/80 text-rose-300 border border-rose-800/60',
-      statusTexto: a.includes('FALHA') ? 'FALHA' : 'BLOQUEADO'
+      statusTexto
+    };
+  }
+  // exclusão de usuário (soft delete): o registro é de uma inativação, não de algo "ativo"
+  if (a === 'SOFT_DELETE') {
+    return {
+      acaoClass: 'text-slate-300 font-bold',
+      badgeClass: 'bg-slate-700/80 text-slate-200 border border-slate-500/60',
+      statusTexto: 'INATIVADO'
     };
   }
   if (/CANCEL|INATIV/.test(a)) {
@@ -97,7 +117,7 @@ async function carregarDadosAuditoria(pagina = paginaAuditoria) {
     if (status === 400) {
       definirStatusBanco(true);
       tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-4 text-center text-amber-400">${escapeHtml(dados?.mensagem || 'Filtro inválido.')}</td></tr>`;
-      desativarPaginacaoAuditoria();
+      limparRodapeAuditoria();
       return;
     }
     if (!ok || !dados?.sucesso || !Array.isArray(dados.logs)) throw new Error(dados?.mensagem || 'Falha ao carregar auditoria');
@@ -133,7 +153,7 @@ async function carregarDadosAuditoria(pagina = paginaAuditoria) {
     if (requisicao !== ultimaRequisicaoAuditoria) return;
     console.error('Erro ao conectar com o serviço de auditoria:', erro);
     definirStatusBanco(false);
-    desativarPaginacaoAuditoria();
+    limparRodapeAuditoria();
     if (tbody) {
       tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-4 text-center text-rose-400">Erro ao carregar os logs do servidor.</td></tr>';
     }

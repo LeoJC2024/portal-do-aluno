@@ -284,3 +284,112 @@ describe('Auditoria (perfil AUDIT): paginação', () => {
     cy.get('#auditoriaAnterior').should('be.disabled');
   });
 });
+
+// Correções encontradas no teste exploratório do perfil AUDITOR (A1, A2, A3, A4)
+describe('Auditoria (perfil AUDIT): correções do teste exploratório', () => {
+  // A1: o status é calculado na tela a partir do nome da ação; SOFT_DELETE (exclusão de usuário) aparecia como ATIVO verde
+  it('A1: SOFT_DELETE aparece como "INATIVADO" em cor neutra; as demais ações seguem como antes', () => {
+    abrir(resposta([
+      log({ id: 1, acao: 'SOFT_DELETE', descricao: 'Usuário excluído: Fulano' }),
+      log({ id: 2, acao: 'ADICAO_VAGAS' }),
+      log({ id: 3, acao: 'REATIVACAO_USUARIO' }),
+      log({ id: 4, acao: 'CONFIRMACAO_ENTRADA' }),
+      log({ id: 5, acao: 'CANCELAMENTO_REALIZADO' })
+    ]));
+    cy.contains('tr', 'SOFT_DELETE').find('td').eq(3).find('span')
+      .should('have.text', 'INATIVADO')
+      .and('have.class', 'bg-slate-700/80')
+      .and('not.have.class', 'bg-emerald-950/80');
+    ['ADICAO_VAGAS', 'REATIVACAO_USUARIO', 'CONFIRMACAO_ENTRADA'].forEach((acao) => {
+      cy.contains('tr', acao).find('td').eq(3).find('span').should('have.text', 'ATIVO').and('have.class', 'bg-emerald-950/80');
+    });
+    cy.contains('tr', 'CANCELAMENTO_REALIZADO').find('td').eq(3).should('have.text', 'INATIVO');
+  });
+
+  it('A3: logins recusados aparecem como "RECUSADO" em vermelho (não como inativação)', () => {
+    abrir(resposta([
+      log({ id: 1, acao: 'LOGIN_RECUSADO_CONTA_INATIVA' }),
+      log({ id: 2, acao: 'LOGIN_RECUSADO_TROCA_SENHA' })
+    ]));
+    ['LOGIN_RECUSADO_CONTA_INATIVA', 'LOGIN_RECUSADO_TROCA_SENHA'].forEach((acao) => {
+      cy.contains('tr', acao).find('td').eq(3).find('span').should('have.text', 'RECUSADO').and('have.class', 'bg-rose-950/80');
+    });
+  });
+
+  it('A3: o filtro de ação lista as ações novas de login recusado e as envia ao servidor', () => {
+    abrir(resposta([log()]));
+    cy.get('#filtroAcao option[value="LOGIN_RECUSADO_CONTA_INATIVA"]').should('exist');
+    cy.get('#filtroAcao option[value="LOGIN_RECUSADO_TROCA_SENHA"]').should('exist');
+    simular(resposta([log({ acao: 'LOGIN_RECUSADO_CONTA_INATIVA' })]), 'acao');
+    cy.get('#filtroAcao').select('LOGIN_RECUSADO_CONTA_INATIVA');
+    cy.wait('@acao').its('request.query').should('deep.equal', { page: '1', acao: 'LOGIN_RECUSADO_CONTA_INATIVA' });
+  });
+
+  const pagina1de250 = () => resposta([log()], ESTATISTICAS, { pagina: 1, total: 12478, totalPaginas: 250 });
+
+  it('A2: depois de erro de validação (400) o rodapé mostra "—" e a paginação fica travada', () => {
+    abrir(pagina1de250());
+    cy.get('#auditoriaTotal').should('have.text', '12.478 registros');
+    cy.get('#auditoriaPaginaInfo').should('have.text', 'Página 1 de 250');
+    cy.get('#auditoriaProxima').should('be.enabled');
+
+    simular({ sucesso: false, mensagem: 'A data inicial não pode ser depois da data final.' }, 'invalido', 400);
+    escolherData('#filtroDataInicio', '2030-05-10');
+    cy.wait('@invalido');
+    cy.get('#auditoriaTotal').should('have.text', '—');
+    cy.get('#auditoriaPaginaInfo').should('have.text', '—');
+    cy.get('#auditoriaAnterior').should('be.disabled');
+    cy.get('#auditoriaProxima').should('be.disabled');
+
+    // a próxima busca bem-sucedida volta a preencher o rodapé
+    simular(resposta([log()], ESTATISTICAS, { pagina: 1, total: 120, totalPaginas: 3 }), 'ok');
+    cy.get('#btnLimparFiltros').click();
+    cy.wait('@ok');
+    cy.get('#auditoriaTotal').should('have.text', '120 registros');
+    cy.get('#auditoriaPaginaInfo').should('have.text', 'Página 1 de 3');
+    cy.get('#auditoriaProxima').should('be.enabled');
+  });
+
+  it('A2: com a API fora do ar (falha de rede) o rodapé mostra "—" e a paginação fica travada', () => {
+    abrir(pagina1de250());
+    cy.get('#auditoriaTotal').should('have.text', '12.478 registros');
+    cy.intercept({ method: 'GET', pathname: '/api/admin/auditoria-completa' }, { forceNetworkError: true }).as('foraDoAr');
+    cy.get('#auditoriaProxima').click();
+    cy.wait('@foraDoAr');
+    cy.contains('Erro ao carregar os logs do servidor.');
+    cy.get('#dbStatusTexto').should('have.text', 'Banco de dados: fora do ar');
+    cy.get('#auditoriaTotal').should('have.text', '—');
+    cy.get('#auditoriaPaginaInfo').should('have.text', '—');
+    cy.get('#auditoriaAnterior').should('be.disabled');
+    cy.get('#auditoriaProxima').should('be.disabled');
+  });
+
+  it('A2: erro 500 também limpa o rodapé', () => {
+    abrir(pagina1de250());
+    simular({ sucesso: false, mensagem: 'Erro interno.' }, 'erro', 500);
+    cy.get('#auditoriaProxima').click();
+    cy.wait('@erro');
+    cy.get('#auditoriaTotal').should('have.text', '—');
+    cy.get('#auditoriaPaginaInfo').should('have.text', '—');
+  });
+
+  it('A4: a confirmação de entrada com matrícula e disciplina é exibida como texto (escapeHtml)', () => {
+    const descricao = 'Portaria confirmou entrada do aluno <b>Ana</b> (2030123) na prova de <img src=x onerror="window.__xss=1"> (2030-05-20 08:00) (Ticket #7)';
+    abrir(resposta([log({ acao: 'CONFIRMACAO_ENTRADA', descricao })]));
+    cy.contains('tr', 'CONFIRMACAO_ENTRADA').should('contain.text', descricao);
+    cy.get('#auditTable img').should('not.exist');
+    cy.get('#auditTable b').should('not.exist');
+    cy.window().its('__xss').should('not.exist');
+  });
+
+  it('A4: buscar pela matrícula com a ação CONFIRMACAO_ENTRADA envia os dois filtros ao servidor', () => {
+    abrir(resposta([log()]));
+    simular(resposta([log()]), 'acao');
+    cy.get('#filtroAcao').select('CONFIRMACAO_ENTRADA');
+    cy.wait('@acao');
+    simular(resposta([log({ acao: 'CONFIRMACAO_ENTRADA', descricao: 'Portaria confirmou entrada do aluno Ana (2030123) na prova de X (2030-05-20 08:00) (Ticket #7)' })]), 'busca');
+    cy.get('#searchInput').type('2030123');
+    cy.wait('@busca').its('request.query').should('deep.equal', { page: '1', busca: '2030123', acao: 'CONFIRMACAO_ENTRADA' });
+    cy.get('#auditTable tbody tr').should('have.length', 1).and('contain.text', '2030123');
+  });
+});
